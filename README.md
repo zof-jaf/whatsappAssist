@@ -452,6 +452,7 @@ Todo se configura por variables de entorno en `.env`. Los valores se validan al 
 | `WAHA_BASE_URL` | `http://localhost:3000` | URL interna de la API de WAHA |
 | `WAHA_PUBLIC_URL` | `http://localhost:3000` | URL visible desde el navegador (para el enlace al dashboard/QR) |
 | `WAHA_SESSION` | `default` | Nombre de la sesión |
+| `WAHA_ENGINE` | `NOWEB` | Motor de WAHA: `NOWEB` (sin navegador), `WEBJS` o `GOWS` |
 | `WAHA_API_KEY` | — | API key de WAHA (`X-Api-Key`) |
 | `WAHA_WEBHOOK_HMAC_KEY` | — | Secreto para validar la firma del webhook |
 | `WAHA_REQUEST_TIMEOUT_MS` | `15000` | Timeout de llamadas a WAHA |

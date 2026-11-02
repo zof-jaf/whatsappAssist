@@ -25,7 +25,9 @@ services:
       WHATSAPP_HOOK_RETRIES_POLICY: exponential
       WHATSAPP_HOOK_RETRIES_DELAY_SECONDS: "3"
       WHATSAPP_HOOK_RETRIES_ATTEMPTS: "8"
-      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      # NOWEB no usa navegador y evita el bug de WEBJS que cierra la sesión
+      # al escanear el QR. Se puede cambiar con WAHA_ENGINE en .env.
+      WHATSAPP_DEFAULT_ENGINE: ${WAHA_ENGINE:-NOWEB}
       WAHA_WORKER_RESTART_SESSIONS: "true"
       # Sin esto, WAHA borra los archivos multimedia a los 180 segundos.
       WHATSAPP_FILES_FOLDER: /app/.media
