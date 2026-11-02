@@ -1,0 +1,1447 @@
+'use strict';
+
+const TOKEN_KEY = 'wa_admin_token';
+const REFRESH_MS = 20_000;
+
+const state = {
+  token: '',
+  inApp: false,
+  tab: 'overview',
+  timeZone: undefined,
+  overview: null,
+  detail: null,
+  currentId: null,
+  refreshTimer: null,
+  conversations: {
+    items: [],
+    total: 0,
+    limit: 20,
+    offset: 0,
+    search: '',
+    status: 'all',
+    loaded: false,
+    loading: false,
+  },
+};
+
+const $ = (selector) => document.querySelector(selector);
+
+const els = {
+  loginView: $('#login-view'),
+  loginForm: $('#login-form'),
+  loginToken: $('#login-token'),
+  loginRemember: $('#login-remember'),
+  loginSubmit: $('#login-submit'),
+  loginError: $('#login-error'),
+  appView: $('#app-view'),
+  brandName: $('#brand-name'),
+  brandSubtitle: $('#brand-subtitle'),
+  modelChip: $('#model-chip'),
+  connectionChip: $('#connection-chip'),
+  logoutButton: $('#logout-button'),
+  tabs: Array.from(document.querySelectorAll('.tab')),
+  panels: {
+    overview: $('#tab-overview'),
+    conversations: $('#tab-conversations'),
+    system: $('#tab-system'),
+  },
+  statsGrid: $('#stats-grid'),
+  healthGrid: $('#health-grid'),
+  botInfo: $('#bot-info'),
+  queueInfo: $('#queue-info'),
+  wahaLink: $('#waha-link'),
+  refreshOverview: $('#refresh-overview'),
+  conversationList: $('#conversation-list'),
+  conversationsCount: $('#conversations-count'),
+  conversationSearch: $('#conversation-search'),
+  conversationStatus: $('#conversation-status'),
+  conversationsPrev: $('#conversations-prev'),
+  conversationsNext: $('#conversations-next'),
+  conversationsPage: $('#conversations-page'),
+  refreshConversations: $('#refresh-conversations'),
+  detailPanel: $('#conversation-detail'),
+  detailEmpty: $('#detail-empty'),
+  detailContent: $('#detail-content'),
+  detailHeader: $('#detail-header'),
+  detailSummary: $('#detail-summary'),
+  detailContext: $('#detail-context'),
+  messageList: $('#message-list'),
+  loadOlder: $('#load-older'),
+  manualForm: $('#manual-form'),
+  manualText: $('#manual-text'),
+  systemHealth: $('#system-health'),
+  systemSettings: $('#system-settings'),
+  failedJobs: $('#failed-jobs'),
+  failedJobsCount: $('#failed-jobs-count'),
+  recentEvents: $('#recent-events'),
+  refreshSystem: $('#refresh-system'),
+  toastContainer: $('#toast-container'),
+  goConversations: $('#go-conversations'),
+  goSystem: $('#go-system'),
+};
+
+/* ---------- Utilidades ---------- */
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => {
+    switch (character) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return character;
+    }
+  });
+}
+
+const numberFormatter = new Intl.NumberFormat('es-AR');
+const relativeFormatter = new Intl.RelativeTimeFormat('es-AR', {
+  numeric: 'auto',
+});
+
+function formatNumber(value) {
+  return numberFormatter.format(Number(value) || 0);
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let size = value / 1024;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[index]}`;
+}
+
+function formatDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (total < 60) return `${total} s`;
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ${minutes % 60} min`;
+  const days = Math.floor(hours / 24);
+  return `${days} d ${hours % 24} h`;
+}
+
+function dateFormatter(options) {
+  const base = { ...options };
+  if (state.timeZone) base.timeZone = state.timeZone;
+  try {
+    return new Intl.DateTimeFormat('es-AR', base);
+  } catch {
+    return new Intl.DateTimeFormat('es-AR', options);
+  }
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return dateFormatter({ dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return dateFormatter({ hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
+function formatRelative(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const diff = date.getTime() - Date.now();
+  const abs = Math.abs(diff);
+  if (abs < 45_000) return 'ahora';
+
+  const units = [
+    [31_536_000_000, 'year'],
+    [2_592_000_000, 'month'],
+    [604_800_000, 'week'],
+    [86_400_000, 'day'],
+    [3_600_000, 'hour'],
+    [60_000, 'minute'],
+  ];
+
+  for (const [size, unit] of units) {
+    if (abs >= size) {
+      return relativeFormatter.format(Math.round(diff / size), unit);
+    }
+  }
+  return relativeFormatter.format(Math.round(diff / 1000), 'second');
+}
+
+function formatDay(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return 'Hoy';
+  if (date.toDateString() === yesterday.toDateString()) return 'Ayer';
+
+  return dateFormatter({ weekday: 'long', day: 'numeric', month: 'long' })
+    .format(date)
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function initials(name) {
+  const cleaned = String(name ?? '').trim();
+  if (!cleaned) return '?';
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  const letters = words
+    .slice(0, 2)
+    .map((word) => Array.from(word)[0])
+    .join('');
+  return (letters || Array.from(cleaned)[0] || '?').toUpperCase();
+}
+
+const STATUS_LABELS = {
+  received: 'Recibido',
+  queued: 'En cola',
+  sent: 'Enviado',
+  delivered: 'Entregado',
+  read: 'Leído',
+  failed: 'Falló',
+  skipped: 'Omitido',
+};
+
+const KIND_LABELS = {
+  text: '',
+  media: 'Multimedia',
+  command: 'Comando',
+  system: 'Sistema',
+  error: 'Error',
+};
+
+function statusLabel(status) {
+  return STATUS_LABELS[status] ?? status ?? '';
+}
+
+function toast(message, type = 'success') {
+  const node = document.createElement('div');
+  node.className = `toast ${type}`;
+  node.textContent = message;
+  els.toastContainer.appendChild(node);
+  setTimeout(() => {
+    node.remove();
+  }, 4500);
+}
+
+/* ---------- API ---------- */
+
+async function api(path, options = {}) {
+  const method = options.method ?? 'GET';
+  const headers = { Accept: 'application/json' };
+  if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (state.token) {
+    headers.Authorization = `Bearer ${state.token}`;
+  }
+
+  let response;
+  try {
+    response = await fetch(`/api/admin${path}`, {
+      method,
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    });
+  } catch {
+    const error = new Error(
+      'No se pudo conectar con el servidor. Verificá que el bot esté corriendo.',
+    );
+    error.status = 0;
+    throw error;
+  }
+
+  const text = await response.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+  }
+
+  if (!response.ok) {
+    const message =
+      data && data.error && data.error.message
+        ? data.error.message
+        : `Error HTTP ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status;
+    error.details = data && data.error ? data.error.details : undefined;
+    throw error;
+  }
+
+  return data;
+}
+
+async function apiAuthed(path, options) {
+  try {
+    return await api(path, options);
+  } catch (error) {
+    if (error.status === 401) {
+      logout('La sesión expiró. Volvé a ingresar el token de administración.');
+    }
+    throw error;
+  }
+}
+
+function handleError(error) {
+  if (!error || error.status === 401) return;
+  toast(error.message || 'Ocurrió un error inesperado', 'error');
+}
+
+/* ---------- Sesión ---------- */
+
+function safeGet(storage, key) {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSet(storage, key, value) {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    /* almacenamiento no disponible */
+  }
+}
+
+function safeRemove(storage, key) {
+  try {
+    storage.removeItem(key);
+  } catch {
+    /* almacenamiento no disponible */
+  }
+}
+
+function readStoredToken() {
+  return (
+    safeGet(window.sessionStorage, TOKEN_KEY) ||
+    safeGet(window.localStorage, TOKEN_KEY) ||
+    ''
+  );
+}
+
+function storeToken(token, remember) {
+  safeRemove(window.sessionStorage, TOKEN_KEY);
+  safeRemove(window.localStorage, TOKEN_KEY);
+  if (remember) {
+    safeSet(window.localStorage, TOKEN_KEY, token);
+  } else {
+    safeSet(window.sessionStorage, TOKEN_KEY, token);
+  }
+}
+
+function clearStoredToken() {
+  safeRemove(window.sessionStorage, TOKEN_KEY);
+  safeRemove(window.localStorage, TOKEN_KEY);
+}
+
+function showLogin(message) {
+  stopAutoRefresh();
+  state.inApp = false;
+  state.token = '';
+  state.detail = null;
+  state.currentId = null;
+  els.appView.hidden = true;
+  els.loginView.hidden = false;
+  els.loginSubmit.disabled = false;
+  els.loginSubmit.textContent = 'Entrar al panel';
+  if (message) {
+    els.loginError.textContent = message;
+    els.loginError.hidden = false;
+  } else {
+    els.loginError.hidden = true;
+  }
+  setTimeout(() => els.loginToken.focus(), 30);
+}
+
+function showApp(overview) {
+  els.loginView.hidden = true;
+  els.appView.hidden = false;
+  state.inApp = true;
+  state.timeZone = overview?.bot?.timeZone;
+  renderOverview(overview);
+  activateTab('overview');
+  startAutoRefresh();
+}
+
+function logout(message) {
+  clearStoredToken();
+  showLogin(message);
+}
+
+/* ---------- Navegación ---------- */
+
+function activateTab(tab) {
+  state.tab = tab;
+  els.tabs.forEach((button) => {
+    button.classList.toggle('active', button.dataset.tab === tab);
+  });
+  Object.entries(els.panels).forEach(([name, panel]) => {
+    panel.hidden = name !== tab;
+  });
+}
+
+function switchTab(tab) {
+  activateTab(tab);
+  if (tab === 'overview') {
+    void loadOverview();
+  } else if (tab === 'conversations') {
+    void loadConversations();
+  } else if (tab === 'system') {
+    void loadSystem();
+  }
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  state.refreshTimer = setInterval(() => {
+    if (
+      state.inApp &&
+      state.tab === 'overview' &&
+      document.visibilityState === 'visible'
+    ) {
+      void loadOverview({ silent: true });
+    }
+  }, REFRESH_MS);
+}
+
+function stopAutoRefresh() {
+  if (state.refreshTimer) {
+    clearInterval(state.refreshTimer);
+    state.refreshTimer = null;
+  }
+}
+
+/* ---------- Render genérico ---------- */
+
+function statCard(label, value, detail) {
+  return `
+    <div class="stat-card">
+      <span class="stat-label">${esc(label)}</span>
+      <strong class="stat-value">${esc(value)}</strong>
+      <span class="stat-detail">${esc(detail)}</span>
+    </div>`;
+}
+
+function healthItem(name, severity, detail) {
+  const safeSeverity = ['ok', 'warn', 'error'].includes(severity)
+    ? severity
+    : '';
+  return `
+    <div class="health-item">
+      <div class="health-item-main">
+        <span class="health-dot ${safeSeverity}"></span>
+        <div class="health-text">
+          <strong>${esc(name)}</strong>
+          <span title="${esc(detail)}">${esc(detail)}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderInfoList(element, entries) {
+  element.innerHTML = entries
+    .map(
+      ([label, value]) => `
+        <div>
+          <dt>${esc(label)}</dt>
+          <dd>${esc(value)}</dd>
+        </div>`,
+    )
+    .join('');
+}
+
+function setConnectionChip(health) {
+  let severity = 'ok';
+  let label = 'Operativo';
+
+  if (!health.waha.ok) {
+    severity = 'error';
+    label = 'WAHA sin conexión';
+  } else if (health.waha.status !== 'WORKING') {
+    severity = 'warn';
+    label = `WAHA: ${health.waha.status ?? 'sin sesión'}`;
+  }
+
+  if (!health.ollama.ok) {
+    severity = 'error';
+    label = health.waha.ok ? 'Ollama sin conexión' : 'Dependencias caídas';
+  } else if (!health.ollama.hasModel) {
+    if (severity !== 'error') severity = 'warn';
+    label = 'Modelo sin descargar';
+  }
+
+  els.connectionChip.className = `chip ${severity}`;
+  els.connectionChip.textContent = label;
+}
+
+function renderHealth(container, health, worker) {
+  const parts = [];
+
+  parts.push(
+    healthItem(
+      'Base de datos',
+      health.db.ok ? 'ok' : 'error',
+      health.db.ok ? 'SQLite operativa' : health.db.error || 'Error de base de datos',
+    ),
+  );
+
+  const wahaDetail = health.waha.ok
+    ? `Sesión: ${health.waha.status ?? 'desconocida'}${
+        health.waha.me?.pushName ? ` · ${health.waha.me.pushName}` : ''
+      }`
+    : health.waha.error || 'No se pudo contactar a WAHA';
+  parts.push(
+    healthItem(
+      'WAHA / WhatsApp',
+      health.waha.ok
+        ? health.waha.status === 'WORKING'
+          ? 'ok'
+          : 'warn'
+        : 'error',
+      wahaDetail,
+    ),
+  );
+
+  const ollamaDetail = health.ollama.ok
+    ? health.ollama.hasModel
+      ? `Modelo disponible (${health.ollama.models.length} modelo/s)`
+      : 'Ollama responde, pero falta el modelo configurado'
+    : health.ollama.error || 'No se pudo contactar a Ollama';
+  parts.push(
+    healthItem(
+      'Ollama / IA local',
+      health.ollama.ok ? (health.ollama.hasModel ? 'ok' : 'warn') : 'error',
+      ollamaDetail,
+    ),
+  );
+
+  if (health.queue) {
+    const failed = health.queue.failed ?? 0;
+    const pending = health.queue.pending ?? 0;
+    const processing = health.queue.processing ?? 0;
+    parts.push(
+      healthItem(
+        'Cola de trabajos',
+        failed > 0 ? 'warn' : 'ok',
+        `${pending} pendientes · ${processing} en proceso · ${failed} fallidos`,
+      ),
+    );
+  }
+
+  if (worker) {
+    parts.push(
+      healthItem(
+        'Worker',
+        worker.running ? 'ok' : 'warn',
+        worker.running
+          ? worker.currentJobId
+            ? `Activo · procesando trabajo #${worker.currentJobId}`
+            : 'Activo y esperando mensajes'
+          : 'Detenido',
+      ),
+    );
+  }
+
+  container.innerHTML = parts.join('');
+}
+
+/* ---------- Resumen ---------- */
+
+async function loadOverview(options = {}) {
+  try {
+    const data = await apiAuthed('/overview');
+    state.overview = data;
+    state.timeZone = data.bot?.timeZone;
+    renderOverview(data);
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  }
+}
+
+function renderOverview(data) {
+  if (!data) return;
+
+  els.brandName.textContent = data.bot?.name || 'WhatsApp AI Bot';
+  els.brandSubtitle.textContent = `Panel de control · v${data.version ?? '—'}`;
+  els.modelChip.textContent = data.bot?.model || 'modelo desconocido';
+  els.modelChip.title = `Modelo de Ollama: ${data.bot?.model ?? '—'}`;
+  setConnectionChip(data.health);
+
+  const stats = data.stats ?? {};
+  const queue = data.health?.queue ?? {};
+  els.statsGrid.innerHTML = [
+    statCard(
+      'Contactos',
+      formatNumber(stats.contacts),
+      `${formatNumber(stats.conversations)} conversaciones`,
+    ),
+    statCard(
+      'Mensajes',
+      formatNumber(stats.messages),
+      `${formatNumber(stats.inboundToday)} entrantes · ${formatNumber(
+        stats.outboundToday,
+      )} salientes hoy`,
+    ),
+    statCard(
+      'Conversaciones',
+      formatNumber(stats.conversations),
+      `${formatNumber(stats.archivedConversations)} archivadas`,
+    ),
+    statCard(
+      'Resúmenes activos',
+      formatNumber(stats.summaries),
+      'Contexto comprimido automáticamente',
+    ),
+    statCard(
+      'Base de datos',
+      formatBytes(stats.dbSizeBytes),
+      'SQLite con historial persistente',
+    ),
+    statCard(
+      'Cola pendiente',
+      formatNumber(queue.pending),
+      `${formatNumber(queue.failed)} fallidos · ${formatNumber(
+        queue.done,
+      )} completados`,
+    ),
+    statCard(
+      'Actividad de hoy',
+      formatNumber((stats.inboundToday ?? 0) + (stats.outboundToday ?? 0)),
+      'Mensajes intercambiados',
+    ),
+    statCard(
+      'Uptime',
+      formatDuration(data.uptimeSeconds),
+      data.worker?.running ? 'Worker activo' : 'Worker detenido',
+    ),
+  ].join('');
+
+  renderHealth(els.healthGrid, data.health, data.worker);
+  setConnectionChip(data.health);
+
+  const settings = data.settings ?? {};
+  renderInfoList(els.botInfo, [
+    ['Bot', `${data.bot?.name ?? '—'}${data.bot?.enabled ? '' : ' (desactivado)'}`],
+    ['Modelo', data.bot?.model ?? '—'],
+    ['Zona horaria', data.bot?.timeZone ?? '—'],
+    ['Historial', `${formatNumber(data.bot?.historyMaxMessages)} mensajes`],
+    [
+      'Resúmenes',
+      data.bot?.summaryEnabled
+        ? `Cada ${formatNumber(settings.summaryTriggerMessages)} mensajes`
+        : 'Desactivados',
+    ],
+    ['Grupos', settings.ignoreGroups ? 'Ignorados' : 'Habilitados'],
+    [
+      'Chats permitidos',
+      settings.allowedChatsConfigured > 0
+        ? formatNumber(settings.allowedChatsConfigured)
+        : 'Todos',
+    ],
+    ['Webhook HMAC', settings.webhookHmacEnabled ? 'Activo' : 'Sin firma'],
+    ['Panel admin', settings.adminEnabled ? 'Activo' : 'Desactivado'],
+    ['Versión', data.version ?? '—'],
+  ]);
+
+  els.queueInfo.innerHTML = `
+    <div class="queue-item">
+      <strong>${formatNumber(queue.pending)}</strong>
+      <span>Pendientes</span>
+    </div>
+    <div class="queue-item">
+      <strong>${formatNumber(queue.processing)}</strong>
+      <span>Procesando</span>
+    </div>
+    <div class="queue-item ${queue.failed > 0 ? 'danger' : ''}">
+      <strong>${formatNumber(queue.failed)}</strong>
+      <span>Fallidos</span>
+    </div>
+    <div class="queue-item">
+      <strong>${formatNumber(queue.done)}</strong>
+      <span>Completados</span>
+    </div>
+    <p class="queue-note muted small">
+      ${
+        queue.oldest_pending_at
+          ? `Trabajo pendiente más antiguo: ${esc(
+              formatRelative(queue.oldest_pending_at),
+            )}`
+          : 'No hay trabajos pendientes en la cola.'
+      }
+    </p>`;
+
+  const dashboardUrl = data.dashboardUrl || '#';
+  els.wahaLink.href = dashboardUrl;
+  els.wahaLink.setAttribute(
+    'aria-disabled',
+    dashboardUrl === '#' ? 'true' : 'false',
+  );
+}
+
+/* ---------- Conversaciones ---------- */
+
+async function loadConversations(options = {}) {
+  if (state.conversations.loading) return;
+  state.conversations.loading = true;
+  try {
+    const params = new URLSearchParams({
+      limit: String(state.conversations.limit),
+      offset: String(state.conversations.offset),
+      search: state.conversations.search,
+      status: state.conversations.status,
+    });
+    const data = await apiAuthed(`/conversations?${params.toString()}`);
+    state.conversations.items = data.items ?? [];
+    state.conversations.total = data.total ?? 0;
+    state.conversations.loaded = true;
+    renderConversationList();
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  } finally {
+    state.conversations.loading = false;
+  }
+}
+
+function renderConversationList() {
+  const { items, total, limit, offset } = state.conversations;
+  els.conversationsCount.textContent =
+    total === 0
+      ? 'Sin conversaciones'
+      : `${formatNumber(total)} conversación${total === 1 ? '' : 'es'}`;
+
+  if (items.length === 0) {
+    els.conversationList.innerHTML = `<div class="list-empty">${
+      state.conversations.search
+        ? 'No hay resultados para esa búsqueda.'
+        : 'Todavía no hay conversaciones. Cuando alguien le escriba al bot, aparecerá acá.'
+    }</div>`;
+  } else {
+    els.conversationList.innerHTML = items
+      .map((item) => {
+        const contact = item.contact ?? {};
+        const name = contact.displayName || contact.pushName || contact.waId;
+        const last = item.lastMessage;
+        const preview = last
+          ? `${last.direction === 'out' ? 'Vos: ' : ''}${
+              last.body || '(sin texto)'
+            }`
+          : 'Sin mensajes';
+        const chips = [];
+        if (item.pendingReply) chips.push('<span class="mini-chip pending">Pendiente</span>');
+        if (!item.aiEnabled) chips.push('<span class="mini-chip">IA off</span>');
+        if (item.status === 'archived')
+          chips.push('<span class="mini-chip archived">Archivada</span>');
+
+        return `
+          <button
+            class="conversation-item ${
+              state.currentId === item.id ? 'active' : ''
+            }"
+            type="button"
+            data-conversation-id="${item.id}"
+          >
+            <span class="avatar">${esc(initials(name))}</span>
+            <span class="conversation-main">
+              <span class="conversation-top">
+                <span class="conversation-name">${esc(name)}</span>
+                <span class="conversation-time">${esc(
+                  formatRelative(item.lastMessageAt),
+                )}</span>
+              </span>
+              <span class="conversation-preview">
+                <span>${esc(preview)}</span>
+                <span class="mini-chips">${chips.join('')}</span>
+              </span>
+            </span>
+          </button>`;
+      })
+      .join('');
+  }
+
+  els.conversationsPage.textContent =
+    total === 0
+      ? '0'
+      : `${formatNumber(offset + 1)}–${formatNumber(
+          Math.min(offset + limit, total),
+        )} de ${formatNumber(total)}`;
+  els.conversationsPrev.disabled = offset <= 0;
+  els.conversationsNext.disabled = offset + limit >= total;
+}
+
+function markActiveConversation(id) {
+  els.conversationList
+    .querySelectorAll('[data-conversation-id]')
+    .forEach((button) => {
+      button.classList.toggle(
+        'active',
+        Number(button.dataset.conversationId) === id,
+      );
+    });
+}
+
+function showDetailPlaceholder(title, text) {
+  els.detailEmpty.innerHTML = `
+    <div class="empty-icon" aria-hidden="true">💬</div>
+    <h3>${esc(title)}</h3>
+    <p class="muted">${esc(text)}</p>`;
+  els.detailEmpty.hidden = false;
+  els.detailContent.hidden = true;
+}
+
+async function openConversation(id, options = {}) {
+  if (!id) return;
+  const changed = state.currentId !== id;
+  state.currentId = id;
+  markActiveConversation(id);
+
+  if (changed) {
+    showDetailPlaceholder('Cargando conversación…', 'Un momento por favor.');
+    els.manualText.value = '';
+  }
+
+  try {
+    const data = await apiAuthed(`/conversations/${id}?limit=100`);
+    state.detail = {
+      ...data,
+      messages: data.messages ?? [],
+      hasMore: Boolean(data.hasMore),
+      oldestId: data.messages?.[0]?.id ?? null,
+    };
+    els.detailEmpty.hidden = true;
+    els.detailContent.hidden = false;
+    renderDetail();
+  } catch (error) {
+    if (error.status !== 401) {
+      showDetailPlaceholder(
+        'No se pudo cargar la conversación',
+        error.message || 'Intentá de nuevo en unos segundos.',
+      );
+    }
+    handleError(error);
+  }
+}
+
+function renderDetail() {
+  const data = state.detail;
+  if (!data) return;
+
+  const contact = data.contact ?? {};
+  const conversation = data.conversation ?? {};
+  const name = contact.displayName || contact.pushName || contact.waId;
+  const archived = conversation.status === 'archived';
+  const aiEnabled = Boolean(conversation.aiEnabled);
+
+  els.detailHeader.innerHTML = `
+    <div class="detail-identity">
+      <span class="avatar">${esc(initials(name))}</span>
+      <div>
+        <h3>${esc(name)}</h3>
+        <p>${esc(contact.waId)}${contact.phone ? ` · ${esc(contact.phone)}` : ''}</p>
+        <p class="muted small">
+          Primera vez: ${esc(formatDate(contact.firstSeenAt))} ·
+          Último mensaje: ${esc(formatRelative(conversation.lastMessageAt))}
+        </p>
+      </div>
+    </div>
+    <div class="detail-actions">
+      <button
+        type="button"
+        class="toggle ${aiEnabled ? 'on' : ''}"
+        data-action="toggle-ai"
+        title="${aiEnabled ? 'Desactivar respuestas automáticas' : 'Activar respuestas automáticas'}"
+      >
+        <span class="dot"></span> IA ${aiEnabled ? 'activada' : 'desactivada'}
+      </button>
+      <button type="button" class="button ghost small" data-action="toggle-archive">
+        ${archived ? 'Reactivar' : 'Archivar'}
+      </button>
+      <button type="button" class="button ghost small" data-action="reset-context">
+        Reiniciar contexto
+      </button>
+      <button type="button" class="button ghost small" data-action="export">
+        Exportar JSON
+      </button>
+    </div>`;
+
+  if (data.summary) {
+    els.detailSummary.innerHTML = `
+      <div class="detail-summary">
+        <h4>Resumen de contexto</h4>
+        <p>${esc(data.summary.text)}</p>
+        <p class="muted">
+          Cubre ${formatNumber(data.summary.messagesCovered)} mensajes ·
+          ${esc(formatDate(data.summary.createdAt))}
+          ${data.summary.model ? ` · ${esc(data.summary.model)}` : ''}
+        </p>
+      </div>`;
+  } else {
+    els.detailSummary.innerHTML = '';
+  }
+
+  els.detailContext.textContent = `${formatNumber(
+    data.context?.messageCount ?? 0,
+  )} mensajes en contexto${
+    archived ? ' · conversación archivada' : ''
+  }`;
+
+  els.loadOlder.hidden = !data.hasMore;
+  renderMessageList();
+  scrollMessagesToBottom();
+}
+
+function renderMessageList() {
+  const data = state.detail;
+  if (!data) return;
+
+  const messages = data.messages ?? [];
+  if (messages.length === 0) {
+    els.messageList.innerHTML =
+      '<div class="empty-mini">Todavía no hay mensajes en esta conversación.</div>';
+    return;
+  }
+
+  const parts = [];
+  let currentDay = '';
+
+  for (const message of messages) {
+    const day = formatDay(message.createdAt);
+    if (day && day !== currentDay) {
+      currentDay = day;
+      parts.push(`<div class="day-separator">${esc(day)}</div>`);
+    }
+
+    const outbound = message.direction === 'out';
+    const media = message.media;
+    const body = message.body || (media ? '' : '(sin texto)');
+    const kindLabel = KIND_LABELS[message.kind] ?? '';
+    const failed = message.status === 'failed';
+
+    const meta = [`<span>${esc(formatTime(message.createdAt))}</span>`];
+    if (outbound && message.status) {
+      meta.push(
+        `<span class="status ${esc(message.status)}">${esc(
+          statusLabel(message.status),
+        )}</span>`,
+      );
+    }
+    if (kindLabel) meta.push(`<span class="kind">${esc(kindLabel)}</span>`);
+    if (message.model && message.model !== 'manual') {
+      meta.push(
+        `<span title="Modelo de IA">${esc(message.model)}</span>`,
+      );
+    }
+    if (message.model === 'manual') {
+      meta.push('<span class="bubble-manual">manual</span>');
+    }
+    if (message.latencyMs !== null && message.latencyMs !== undefined) {
+      meta.push(`<span>${formatNumber(message.latencyMs)} ms</span>`);
+    }
+
+    const mediaBlock = media
+      ? `<span class="media-icon" aria-hidden="true">${
+          String(media.mime || '').startsWith('image/')
+            ? '🖼️'
+            : String(media.mime || '').startsWith('audio/')
+              ? '🎧'
+              : String(media.mime || '').startsWith('video/')
+                ? '🎬'
+                : '📎'
+        }</span>`
+      : '';
+
+    const errorBlock =
+      message.error && failed
+        ? `<div class="bubble-error">
+             ${esc(message.error)}
+             ${
+               outbound
+                 ? `<br><button type="button" class="button danger small" data-action="retry-message" data-id="${message.id}">Reintentar envío</button>`
+                 : ''
+             }
+           </div>`
+        : '';
+
+    parts.push(`
+      <div class="message-row ${outbound ? 'out' : 'in'}">
+        <div class="bubble">
+          <div class="bubble-body ${media ? 'media' : ''}">
+            ${mediaBlock}
+            <span>${esc(body)}</span>
+          </div>
+          ${errorBlock}
+          <div class="bubble-meta">${meta.join('')}</div>
+        </div>
+      </div>`);
+  }
+
+  els.messageList.innerHTML = parts.join('');
+}
+
+function scrollMessagesToBottom() {
+  els.messageList.scrollTop = els.messageList.scrollHeight;
+}
+
+async function loadOlderMessages(button) {
+  const data = state.detail;
+  if (!data || !data.hasMore || !data.oldestId) return;
+
+  const previousHeight = els.messageList.scrollHeight;
+  const previousScroll = els.messageList.scrollTop;
+
+  await withBusy(button, async () => {
+    const older = await apiAuthed(
+      `/conversations/${data.conversation.id}?limit=100&beforeId=${data.oldestId}`,
+    );
+    const olderMessages = older.messages ?? [];
+    if (olderMessages.length > 0) {
+      data.messages = [...olderMessages, ...data.messages];
+      data.oldestId = olderMessages[0].id;
+    }
+    data.hasMore = Boolean(older.hasMore);
+    els.loadOlder.hidden = !data.hasMore;
+    renderMessageList();
+    els.messageList.scrollTop =
+      els.messageList.scrollHeight - previousHeight + previousScroll;
+  });
+}
+
+async function withBusy(button, task) {
+  if (!button) return task();
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = '…';
+  try {
+    return await task();
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
+/* ---------- Acciones de conversación ---------- */
+
+async function toggleAi(button) {
+  const data = state.detail;
+  if (!data) return;
+  const next = !data.conversation.aiEnabled;
+  await withBusy(button, async () => {
+    await apiAuthed(`/conversations/${data.conversation.id}`, {
+      method: 'PATCH',
+      body: { aiEnabled: next },
+    });
+    toast(next ? 'IA activada para esta conversación' : 'IA desactivada');
+    await openConversation(data.conversation.id);
+    await loadConversations({ silent: true });
+  });
+}
+
+async function toggleArchive(button) {
+  const data = state.detail;
+  if (!data) return;
+  const next = data.conversation.status === 'archived' ? 'active' : 'archived';
+  await withBusy(button, async () => {
+    await apiAuthed(`/conversations/${data.conversation.id}`, {
+      method: 'PATCH',
+      body: { status: next },
+    });
+    toast(next === 'archived' ? 'Conversación archivada' : 'Conversación reactivada');
+    await openConversation(data.conversation.id);
+    await loadConversations({ silent: true });
+  });
+}
+
+async function resetContext(button) {
+  const data = state.detail;
+  if (!data) return;
+  const confirmed = window.confirm(
+    '¿Reiniciar el contexto de esta conversación? El historial se conserva, pero la IA dejará de usarlo.',
+  );
+  if (!confirmed) return;
+
+  await withBusy(button, async () => {
+    await apiAuthed(`/conversations/${data.conversation.id}/reset`, {
+      method: 'POST',
+    });
+    toast('Contexto reiniciado. El historial quedó guardado.');
+    await openConversation(data.conversation.id);
+  });
+}
+
+async function retryMessage(button) {
+  const messageId = Number(button.dataset.id);
+  if (!messageId) return;
+
+  await withBusy(button, async () => {
+    await apiAuthed(`/messages/${messageId}/retry`, { method: 'POST' });
+    toast('Mensaje reenviado');
+    if (state.currentId) await openConversation(state.currentId);
+    await loadConversations({ silent: true });
+  });
+}
+
+async function exportConversation(button) {
+  const data = state.detail;
+  if (!data) return;
+
+  await withBusy(button, async () => {
+    const response = await fetch(
+      `/api/admin/conversations/${data.conversation.id}/export`,
+      { headers: { Authorization: `Bearer ${state.token}` } },
+    );
+
+    if (response.status === 401) {
+      logout('La sesión expiró. Volvé a ingresar el token.');
+      return;
+    }
+    if (!response.ok) {
+      throw new Error(`No se pudo exportar (HTTP ${response.status})`);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `conversacion-${data.conversation.id}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    toast('Historial exportado en JSON');
+  });
+}
+
+async function sendManualMessage() {
+  const data = state.detail;
+  if (!data) return;
+  const text = els.manualText.value.trim();
+  if (!text) return;
+
+  const button = els.manualForm.querySelector('button[type="submit"]');
+  await withBusy(button, async () => {
+    await apiAuthed(`/conversations/${data.conversation.id}/messages`, {
+      method: 'POST',
+      body: { text },
+    });
+    els.manualText.value = '';
+    toast('Mensaje enviado por WhatsApp');
+    await openConversation(data.conversation.id);
+    await loadConversations({ silent: true });
+  });
+}
+
+/* ---------- Sistema ---------- */
+
+async function loadSystem(options = {}) {
+  try {
+    const data = await apiAuthed('/system');
+    renderSystem(data);
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  }
+}
+
+function renderSystem(data) {
+  renderHealth(els.systemHealth, data.health, data.worker);
+
+  const settings = data.settings ?? {};
+  renderInfoList(els.systemSettings, [
+    ['Modelo', settings.model ?? '—'],
+    ['Bot', settings.botName ?? '—'],
+    ['Zona horaria', settings.timeZone ?? '—'],
+    ['Historial máximo', `${formatNumber(settings.historyMaxMessages)} mensajes`],
+    ['Límite de contexto', `${formatNumber(settings.historyMaxChars)} caracteres`],
+    [
+      'Resúmenes',
+      settings.summaryEnabled
+        ? `Cada ${formatNumber(settings.summaryTriggerMessages)} mensajes`
+        : 'Desactivados',
+    ],
+    ['Grupos', settings.ignoreGroups ? 'Ignorados' : 'Habilitados'],
+    [
+      'Chats permitidos',
+      settings.allowedChatsConfigured > 0
+        ? formatNumber(settings.allowedChatsConfigured)
+        : 'Todos',
+    ],
+    ['Webhook HMAC', settings.webhookHmacEnabled ? 'Activo' : 'Sin firma'],
+    ['Panel admin', settings.adminEnabled ? 'Activo' : 'Desactivado'],
+  ]);
+
+  const jobs = data.failedJobs ?? [];
+  els.failedJobsCount.textContent = String(jobs.length);
+  els.failedJobsCount.className = `chip ${
+    jobs.length > 0 ? 'error' : 'neutral'
+  }`;
+  els.failedJobs.innerHTML =
+    jobs.length === 0
+      ? '<div class="empty-mini">No hay trabajos fallidos. Todo en orden.</div>'
+      : jobs
+          .map(
+            (job) => `
+              <div class="stack-item">
+                <div class="stack-item-top">
+                  <span class="stack-item-title">Trabajo #${job.id} · ${esc(
+                    job.chatId,
+                  )}</span>
+                  <span class="badge failed">${formatNumber(
+                    job.attempts,
+                  )}/${formatNumber(job.maxAttempts)}</span>
+                </div>
+                <div class="stack-item-sub">
+                  ${esc(job.lastError || 'Sin detalle del error')}
+                </div>
+                <div class="stack-item-sub">
+                  Actualizado: ${esc(formatDate(job.updatedAt))}
+                </div>
+                <button
+                  type="button"
+                  class="button ghost small"
+                  data-job-id="${job.id}"
+                >
+                  Reintentar trabajo
+                </button>
+              </div>`,
+          )
+          .join('');
+
+  const events = data.events ?? [];
+  els.recentEvents.innerHTML =
+    events.length === 0
+      ? '<div class="empty-mini">Todavía no hay eventos de webhook.</div>'
+      : events
+          .map(
+            (event) => `
+              <div class="stack-item">
+                <div class="stack-item-top">
+                  <span class="stack-item-title">${esc(event.event)}</span>
+                  <span class="badge ${esc(event.status)}">${esc(
+                    event.status,
+                  )}</span>
+                </div>
+                <div class="stack-item-sub">
+                  ${esc(formatDate(event.createdAt))}${
+                    event.reason ? ` · ${esc(event.reason)}` : ''
+                  }
+                </div>
+                ${
+                  event.payloadPreview
+                    ? `<details>
+                         <summary>Ver payload</summary>
+                         <pre>${esc(event.payloadPreview)}</pre>
+                       </details>`
+                    : ''
+                }
+              </div>`,
+          )
+          .join('');
+}
+
+async function retryJob(button) {
+  const jobId = Number(button.dataset.jobId);
+  if (!jobId) return;
+  await withBusy(button, async () => {
+    await apiAuthed(`/jobs/${jobId}/retry`, { method: 'POST' });
+    toast('Trabajo reencolado');
+    await loadSystem();
+  });
+}
+
+/* ---------- Eventos de interfaz ---------- */
+
+function bindEvents() {
+  els.loginForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const token = els.loginToken.value.trim();
+    if (!token) return;
+
+    els.loginSubmit.disabled = true;
+    els.loginSubmit.textContent = 'Verificando…';
+    els.loginError.hidden = true;
+
+    state.token = token;
+    try {
+      const overview = await api('/overview');
+      storeToken(token, els.loginRemember.checked);
+      showApp(overview);
+      toast('Sesión iniciada');
+    } catch (error) {
+      state.token = '';
+      els.loginError.textContent =
+        error.status === 401
+          ? 'Token inválido. Revisá el valor de ADMIN_TOKEN en el archivo .env.'
+          : error.message || 'No se pudo iniciar sesión.';
+      els.loginError.hidden = false;
+    } finally {
+      els.loginSubmit.disabled = false;
+      els.loginSubmit.textContent = 'Entrar al panel';
+    }
+  });
+
+  els.logoutButton.addEventListener('click', () => {
+    logout();
+    toast('Sesión cerrada');
+  });
+
+  els.tabs.forEach((button) => {
+    button.addEventListener('click', () => switchTab(button.dataset.tab));
+  });
+
+  els.refreshOverview.addEventListener('click', () =>
+    loadOverview({ silent: false }),
+  );
+  els.refreshConversations.addEventListener('click', () =>
+    loadConversations({ silent: false }),
+  );
+  els.refreshSystem.addEventListener('click', () => loadSystem());
+  els.goConversations.addEventListener('click', () =>
+    switchTab('conversations'),
+  );
+  els.goSystem.addEventListener('click', () => switchTab('system'));
+
+  let searchTimer;
+  els.conversationSearch.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      state.conversations.search = els.conversationSearch.value.trim();
+      state.conversations.offset = 0;
+      void loadConversations();
+    }, 300);
+  });
+
+  els.conversationStatus.addEventListener('change', () => {
+    state.conversations.status = els.conversationStatus.value;
+    state.conversations.offset = 0;
+    void loadConversations();
+  });
+
+  els.conversationsPrev.addEventListener('click', () => {
+    state.conversations.offset = Math.max(
+      0,
+      state.conversations.offset - state.conversations.limit,
+    );
+    void loadConversations();
+  });
+
+  els.conversationsNext.addEventListener('click', () => {
+    if (
+      state.conversations.offset + state.conversations.limit <
+      state.conversations.total
+    ) {
+      state.conversations.offset += state.conversations.limit;
+      void loadConversations();
+    }
+  });
+
+  els.conversationList.addEventListener('click', (event) => {
+    const item = event.target.closest('[data-conversation-id]');
+    if (!item) return;
+    void openConversation(Number(item.dataset.conversationId));
+  });
+
+  els.detailPanel.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-action]');
+    if (!button || button.disabled) return;
+
+    const action = button.dataset.action;
+    const handlers = {
+      'toggle-ai': toggleAi,
+      'toggle-archive': toggleArchive,
+      'reset-context': resetContext,
+      export: exportConversation,
+      'retry-message': retryMessage,
+    };
+    const handler = handlers[action];
+    if (!handler) return;
+
+    Promise.resolve(handler(button)).catch(handleError);
+  });
+
+  els.loadOlder.addEventListener('click', () => {
+    loadOlderMessages(els.loadOlder).catch(handleError);
+  });
+
+  els.manualForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    sendManualMessage().catch(handleError);
+  });
+
+  els.manualText.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      els.manualForm.requestSubmit();
+    }
+  });
+
+  els.failedJobs.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-job-id]');
+    if (!button) return;
+    retryJob(button).catch(handleError);
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (
+      document.visibilityState === 'visible' &&
+      state.inApp &&
+      state.tab === 'overview'
+    ) {
+      void loadOverview({ silent: true });
+    }
+  });
+}
+
+async function init() {
+  bindEvents();
+
+  const storedToken = readStoredToken();
+  if (!storedToken) {
+    showLogin();
+    return;
+  }
+
+  els.loginRemember.checked = Boolean(
+    safeGet(window.localStorage, TOKEN_KEY),
+  );
+  state.token = storedToken;
+  els.loginSubmit.disabled = true;
+  els.loginSubmit.textContent = 'Verificando…';
+
+  try {
+    const overview = await api('/overview');
+    showApp(overview);
+  } catch (error) {
+    clearStoredToken();
+    showLogin(
+      error.status === 401
+        ? 'El token guardado ya no es válido. Ingresalo de nuevo.'
+        : error.message,
+    );
+  } finally {
+    els.loginSubmit.disabled = false;
+    els.loginSubmit.textContent = 'Entrar al panel';
+  }
+}
+
+void init();

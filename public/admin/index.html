@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Panel · WhatsApp AI Bot</title>
+    <link rel="stylesheet" href="/admin/styles.css" />
+  </head>
+  <body>
+    <div id="login-view" class="login-view">
+      <form id="login-form" class="login-card" autocomplete="on">
+        <div class="login-logo" aria-hidden="true">
+          <span class="logo-dot"></span>
+          <span>WA</span>
+        </div>
+        <h1>WhatsApp AI Bot</h1>
+        <p class="muted">
+          Panel de administración. Ingresá el <code>ADMIN_TOKEN</code> definido
+          en tu archivo <code>.env</code>.
+        </p>
+
+        <label class="field">
+          <span>Token de administración</span>
+          <input
+            id="login-token"
+            type="password"
+            name="token"
+            placeholder="Pegá el token aquí"
+            autocomplete="current-password"
+            spellcheck="false"
+            required
+          />
+        </label>
+
+        <label class="checkbox">
+          <input id="login-remember" type="checkbox" />
+          <span>Recordar en este dispositivo</span>
+        </label>
+
+        <button id="login-submit" class="button primary wide" type="submit">
+          Entrar al panel
+        </button>
+
+        <p id="login-error" class="form-error" role="alert" hidden></p>
+
+        <p class="login-help">
+          El token se guarda solo en este navegador. Para cerrar la sesión usá
+          “Salir”.
+        </p>
+      </form>
+    </div>
+
+    <div id="app-view" class="app-view" hidden>
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span class="logo-dot"></span>
+            <span>WA</span>
+          </div>
+          <div class="brand-text">
+            <strong id="brand-name">WhatsApp AI Bot</strong>
+            <span id="brand-subtitle" class="muted">Panel de control</span>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <span id="model-chip" class="chip" title="Modelo de Ollama">—</span>
+          <span id="connection-chip" class="chip neutral">Comprobando…</span>
+          <button id="logout-button" class="button ghost small" type="button">
+            Salir
+          </button>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Secciones">
+        <button class="tab active" type="button" data-tab="overview">
+          Resumen
+        </button>
+        <button class="tab" type="button" data-tab="conversations">
+          Conversaciones
+        </button>
+        <button class="tab" type="button" data-tab="system">
+          Sistema
+        </button>
+      </nav>
+
+      <main class="main">
+        <section id="tab-overview" class="tab-panel">
+          <div class="section-heading">
+            <div>
+              <h2>Resumen general</h2>
+              <p class="muted">
+                Estado del bot, dependencias y actividad reciente.
+              </p>
+            </div>
+            <button
+              id="refresh-overview"
+              class="button ghost small"
+              type="button"
+            >
+              Actualizar
+            </button>
+          </div>
+
+          <div id="stats-grid" class="stats-grid" aria-live="polite">
+            <div class="stat-card skeleton"></div>
+            <div class="stat-card skeleton"></div>
+            <div class="stat-card skeleton"></div>
+            <div class="stat-card skeleton"></div>
+          </div>
+
+          <div class="overview-grid">
+            <section class="card">
+              <div class="card-heading">
+                <h3>Dependencias</h3>
+                <span class="muted small">Se actualiza cada 20 s</span>
+              </div>
+              <div id="health-grid" class="health-grid"></div>
+            </section>
+
+            <section class="card">
+              <div class="card-heading">
+                <h3>Configuración efectiva</h3>
+              </div>
+              <dl id="bot-info" class="info-list"></dl>
+            </section>
+          </div>
+
+          <div class="overview-grid">
+            <section class="card">
+              <div class="card-heading">
+                <h3>Cola de mensajes</h3>
+              </div>
+              <div id="queue-info" class="queue-grid"></div>
+            </section>
+
+            <section class="card accent-card">
+              <div class="card-heading">
+                <h3>Accesos rápidos</h3>
+              </div>
+              <p class="muted">
+                Escaneá el código QR de WhatsApp en el panel de WAHA y revisá el
+                historial completo desde la pestaña Conversaciones.
+              </p>
+              <div class="quick-actions">
+                <a
+                  id="waha-link"
+                  class="button primary small"
+                  href="#"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Abrir panel de WAHA
+                </a>
+                <button
+                  id="go-conversations"
+                  class="button ghost small"
+                  type="button"
+                >
+                  Ver conversaciones
+                </button>
+                <button id="go-system" class="button ghost small" type="button">
+                  Estado del sistema
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="tab-conversations" class="tab-panel" hidden>
+          <div class="conversations-layout">
+            <aside class="list-panel card">
+              <div class="list-heading">
+                <div>
+                  <h2>Conversaciones</h2>
+                  <p id="conversations-count" class="muted small">—</p>
+                </div>
+                <button
+                  id="refresh-conversations"
+                  class="icon-button"
+                  type="button"
+                  title="Actualizar lista"
+                  aria-label="Actualizar lista"
+                >
+                  ↻
+                </button>
+              </div>
+
+              <label class="fieldcompact">
+                <span class="sr-only">Buscar conversaciones</span>
+                <input
+                  id="conversation-search"
+                  type="search"
+                  placeholder="Buscar por nombre, teléfono o ID…"
+                  autocomplete="off"
+                />
+              </label>
+
+              <div class="list-filters">
+                <label class="fieldcompact grow">
+                  <span class="sr-only">Filtrar por estado</span>
+                  <select id="conversation-status">
+                    <option value="all">Todas</option>
+                    <option value="active">Activas</option>
+                    <option value="archived">Archivadas</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="conversation-list" class="conversation-list"></div>
+
+              <div class="pagination">
+                <button
+                  id="conversations-prev"
+                  class="button ghost small"
+                  type="button"
+                  disabled
+                >
+                  Anterior
+                </button>
+                <span id="conversations-page" class="muted small">—</span>
+                <button
+                  id="conversations-next"
+                  class="button ghost small"
+                  type="button"
+                  disabled
+                >
+                  Siguiente
+                </button>
+              </div>
+            </aside>
+
+            <section id="conversation-detail" class="detail-panel card">
+              <div id="detail-empty" class="empty-state">
+                <div class="empty-icon" aria-hidden="true">💬</div>
+                <h3>Elegí una conversación</h3>
+                <p class="muted">
+                  Seleccioná un chat de la lista para ver el historial completo,
+                  el resumen de contexto y las acciones disponibles.
+                </p>
+              </div>
+              <div id="detail-content" class="detail-content" hidden>
+                <header id="detail-header" class="detail-header"></header>
+                <div id="detail-summary"></div>
+                <div class="messages-toolbar">
+                  <button
+                    id="load-older"
+                    class="button ghost small"
+                    type="button"
+                    hidden
+                  >
+                    Cargar mensajes anteriores
+                  </button>
+                  <span id="detail-context" class="muted small"></span>
+                </div>
+                <div id="message-list" class="message-list"></div>
+                <form id="manual-form" class="composer">
+                  <textarea
+                    id="manual-text"
+                    rows="2"
+                    maxlength="6000"
+                    placeholder="Escribir un mensaje manual como el bot…"
+                  ></textarea>
+                  <button class="button primary" type="submit">
+                    Enviar
+                  </button>
+                </form>
+                <p class="composer-hint muted small">
+                  Enter envía · Shift + Enter agrega una línea nueva
+                </p>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="tab-system" class="tab-panel" hidden>
+          <div class="section-heading">
+            <div>
+              <h2>Sistema</h2>
+              <p class="muted">
+                Salud de las dependencias, configuración y eventos recientes.
+              </p>
+            </div>
+            <button id="refresh-system" class="button ghost small" type="button">
+              Actualizar
+            </button>
+          </div>
+
+          <div class="overview-grid">
+            <section class="card">
+              <div class="card-heading">
+                <h3>Salud</h3>
+              </div>
+              <div id="system-health" class="health-grid"></div>
+            </section>
+
+            <section class="card">
+              <div class="card-heading">
+                <h3>Configuración</h3>
+              </div>
+              <dl id="system-settings" class="info-list"></dl>
+            </section>
+          </div>
+
+          <div class="overview-grid">
+            <section class="card">
+              <div class="card-heading">
+                <h3>Trabajos fallidos</h3>
+                <span id="failed-jobs-count" class="chip neutral">0</span>
+              </div>
+              <div id="failed-jobs" class="stack-list"></div>
+            </section>
+
+            <section class="card">
+              <div class="card-heading">
+                <h3>Eventos recientes</h3>
+                <span class="muted small">Últimos 50 webhooks</span>
+              </div>
+              <div id="recent-events" class="stack-list scrollable"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <script src="/admin/app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,177 @@
+name: whatsapp-ai-bot
+
+services:
+  # ---------------------------------------------------------------------------
+  # WhatsApp HTTP API (WAHA). Mantiene la sesión de WhatsApp y reenvía eventos.
+  # ---------------------------------------------------------------------------
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: wa-bot-waha
+    restart: unless-stopped
+    # Solo accesible desde esta máquina. Si usás un servidor remoto, cambiá
+    # 127.0.0.1 por la IP/VPN correspondiente o usá un túnel SSH.
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      WAHA_API_KEY: ${WAHA_API_KEY:?Ejecutá npm run setup para generar el archivo .env}
+      WAHA_DASHBOARD_ENABLED: "true"
+      WAHA_DASHBOARD_USERNAME: ${WAHA_DASHBOARD_USERNAME:-admin}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD:?Falta WAHA_DASHBOARD_PASSWORD en .env}
+      WHATSAPP_SWAGGER_USERNAME: ${WAHA_DASHBOARD_USERNAME:-admin}
+      WHATSAPP_SWAGGER_PASSWORD: ${WAHA_DASHBOARD_PASSWORD:?Falta WAHA_DASHBOARD_PASSWORD en .env}
+      WHATSAPP_HOOK_URL: http://bot:4000/webhook
+      WHATSAPP_HOOK_EVENTS: message,session.status,message.ack
+      WHATSAPP_HOOK_HMAC_KEY: ${WAHA_WEBHOOK_HMAC_KEY:?Falta WAHA_WEBHOOK_HMAC_KEY en .env}
+      WHATSAPP_HOOK_RETRIES_POLICY: exponential
+      WHATSAPP_HOOK_RETRIES_DELAY_SECONDS: "3"
+      WHATSAPP_HOOK_RETRIES_ATTEMPTS: "8"
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      WAHA_WORKER_RESTART_SESSIONS: "true"
+      # Sin esto, WAHA borra los archivos multimedia a los 180 segundos.
+      WHATSAPP_FILES_FOLDER: /app/.media
+      WHATSAPP_FILES_LIFETIME: "0"
+      TZ: ${TIMEZONE:-America/Argentina/Buenos_Aires}
+    volumes:
+      - waha_sessions:/app/.sessions
+      - waha_media:/app/.media
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Ollama: motor de IA local. El modelo se descarga con el servicio ollama-init.
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: wa-bot-ollama
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Para usar GPU NVIDIA, descomentá el bloque siguiente y asegurate de tener
+    # el NVIDIA Container Toolkit instalado.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # Descarga idempotente del modelo configurado. Es normal que este contenedor
+  # termine y quede en estado "exited (0)".
+  # ---------------------------------------------------------------------------
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: wa-bot-ollama-init
+    restart: "on-failure:3"
+    depends_on:
+      ollama:
+        condition: service_started
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until ollama list >/dev/null 2>&1; do
+          echo "Esperando a Ollama...";
+          sleep 2;
+        done
+        echo "Descargando/verificando modelo ${OLLAMA_MODEL:-llama3.2:3b}..."
+        ollama pull "${OLLAMA_MODEL:-llama3.2:3b}"
+        echo "Modelo listo."
+
+  # ---------------------------------------------------------------------------
+  # Crea y arranca la sesión "default" de WAHA si todavía no existe. Es
+  # idempotente y también puede ejecutarse a mano con npm run waha:init.
+  # ---------------------------------------------------------------------------
+  waha-init:
+    build: .
+    container_name: wa-bot-waha-init
+    restart: "on-failure:3"
+    depends_on:
+      waha:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      WAHA_BASE_URL: http://waha:3000
+      WAHA_SESSION: ${WAHA_SESSION:-default}
+    # La imagen del bot trae un HEALTHCHECK para el servidor HTTP; este
+    # contenedor es de un solo uso y no escucha en el puerto 4000.
+    healthcheck:
+      disable: true
+    command: ["node", "scripts/waha-init.mjs"]
+
+  # ---------------------------------------------------------------------------
+  # Bot: webhook, cola durable, historial SQLite, panel y API administrativa.
+  # ---------------------------------------------------------------------------
+  bot:
+    build: .
+    container_name: wa-bot-app
+    restart: unless-stopped
+    depends_on:
+      waha:
+        condition: service_started
+      ollama:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "4000"
+      DATABASE_PATH: /app/data/bot.db
+      WAHA_BASE_URL: http://waha:3000
+      WAHA_PUBLIC_URL: ${WAHA_PUBLIC_URL:-http://localhost:3000}
+      OLLAMA_BASE_URL: http://ollama:11434
+      LOG_PRETTY: "false"
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - bot_data:/app/data
+      - bot_backups:/app/backups
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot_data:
+  bot_backups:
+  waha_sessions:
+  waha_media:
+  ollama_data:
