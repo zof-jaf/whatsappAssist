@@ -696,6 +696,17 @@ docker compose logs --tail=200 waha
 
 Abrí `http://localhost:3000/dashboard` con las credenciales del `.env`.
 
+Si con el motor `WEBJS` la sesión pasa a `FAILED` justo después de escanear el QR (en los logs aparece `Session has been logged out`), cambiá a `WAHA_ENGINE=NOWEB` en `.env`, borrá el volumen de sesiones y recreá WAHA:
+
+```powershell
+docker compose down waha
+docker volume rm whatsapp-ai-bot_waha_sessions
+docker compose up -d --force-recreate waha
+npm run waha:init
+```
+
+Volvé a escanear el QR. `NOWEB` no usa navegador y evita ese cierre de sesión.
+
 ### Error `UNIQUE constraint failed: messages.wa_message_id`
 
 No debería ocurrir en uso normal: el webhook deduplica por `wa_message_id`. Si aparece, revisá si hay dos instancias del bot usando la misma base o un webhook duplicado de otra sesión.
