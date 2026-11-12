@@ -28,6 +28,9 @@ services:
       # NOWEB no usa navegador y evita el bug de WEBJS que cierra la sesión
       # al escanear el QR. Se puede cambiar con WAHA_ENGINE en .env.
       WHATSAPP_DEFAULT_ENGINE: ${WAHA_ENGINE:-NOWEB}
+      # NOWEB debe anunciar una versión de WhatsApp Web vigente. "auto-web" la
+      # resuelve al arrancar; si falla, WAHA usa la incluida en la imagen.
+      WAHA_NOWEB_WA_VERSION: ${WAHA_NOWEB_WA_VERSION:-auto-web}
       WAHA_WORKER_RESTART_SESSIONS: "true"
       # Sin esto, WAHA borra los archivos multimedia a los 180 segundos.
       WHATSAPP_FILES_FOLDER: /app/.media

@@ -453,6 +453,7 @@ Todo se configura por variables de entorno en `.env`. Los valores se validan al 
 | `WAHA_PUBLIC_URL` | `http://localhost:3000` | URL visible desde el navegador (para el enlace al dashboard/QR) |
 | `WAHA_SESSION` | `default` | Nombre de la sesión |
 | `WAHA_ENGINE` | `NOWEB` | Motor de WAHA: `NOWEB` (sin navegador), `WEBJS` o `GOWS` |
+| `WAHA_NOWEB_WA_VERSION` | `auto-web` | Versión de WhatsApp Web que anuncia NOWEB; `auto-web` usa la última disponible |
 | `WAHA_API_KEY` | — | API key de WAHA (`X-Api-Key`) |
 | `WAHA_WEBHOOK_HMAC_KEY` | — | Secreto para validar la firma del webhook |
 | `WAHA_REQUEST_TIMEOUT_MS` | `15000` | Timeout de llamadas a WAHA |
@@ -706,6 +707,17 @@ npm run waha:init
 ```
 
 Volvé a escanear el QR. `NOWEB` no usa navegador y evita ese cierre de sesión.
+
+### La sesión `NOWEB` queda en `FAILED` con `Connection Failure`
+
+Si en los logs aparece `Connection closed due to 'Error: Connection Failure'` en `noise-handler.js`, WAHA está anunciando una versión de WhatsApp Web que el servidor rechaza. Verificá que el `.env` tenga `WAHA_NOWEB_WA_VERSION=auto-web` y recreá WAHA:
+
+```powershell
+docker compose up -d --force-recreate waha
+docker compose logs --tail=100 waha
+```
+
+Al arrancar, WAHA busca la última versión en `web.whatsapp.com` y la usa si es más nueva que la incluida en la imagen. Si la sesión ya quedó inválida, desvinculá el dispositivo en WhatsApp y volvé a escanear el QR.
 
 ### Error `UNIQUE constraint failed: messages.wa_message_id`
 
