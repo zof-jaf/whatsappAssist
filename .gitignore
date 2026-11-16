@@ -6,6 +6,8 @@ backups/
 .env
 .env.*
 !.env.example
+# Notas locales con conversaciones reales y credenciales.
+instrucciones
 *.log
 *.sqlite
 *.sqlite3
