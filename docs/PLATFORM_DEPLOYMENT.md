@@ -153,7 +153,44 @@ Verificación:
 npm run smoke:platform   # PLATFORM_BASE_URL=https://tu-dominio.com
 ```
 
-### 4.6 Verificación
+### 4.6 Despliegue en Railway
+
+El repositorio incluye `railway.json`, que configura el builder Dockerfile y el
+comando de arranque de la plataforma (`node dist/platform/index.js`).
+
+**Error común:** `dockerfile invalid: docker VOLUME at Line 48 is not supported,
+use Railway Volumes`. railway no permite la instrucción `VOLUME` en el Dockerfile:
+ya fue eliminada. Si necesitás persistencia para el bot legado (SQLite), creá un
+**Railway Volume** en el dashboard del servicio y montalo en `/app/data`. La
+plataforma no requiere volumen local: guarda todo en Neon y las sesiones viven en WAHA.
+
+Pasos:
+
+1. Crear el servicio desde el repositorio (Railway detecta `railway.json`).
+2. En Variables, cargar **todas** las de la sección 4.4, en especial:
+   - `DATABASE_URL` (cadena Neon rotada).
+   - `WAHA_BASE_URL` (URL pública o interna de tu servicio WAHA en Railway).
+   - `WAHA_ADMIN_API_KEY`, `SESSION_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
+   - `COOKIE_SECURE=true`, `TRUST_PROXY=true`, `APP_BASE_URL=https://<tu-dominio>.up.railway.app`.
+   - `ALLOW_PUBLIC_REGISTRATION=false`.
+3. El healthcheck usa `/health` y respeta la variable `PORT` que Railway asigna
+   (no depende del 4000 fijo).
+4. Antes de hacer push, corré el preflight (valida artefactos, Dockerfile,
+   `railway.json` y variables de entorno):
+
+   ```bash
+   npm run build && npm run verify:deploy
+   ```
+
+5. Si también desplegás WAHA en Railway, usá su URL interna para `WAHA_BASE_URL` y
+   configurá el webhook hacia `https://<tu-servicio>.up.railway.app/webhook` cuando
+   el motor por bot esté activo.
+
+> Si querés desplegar el **bot legado** en vez de la plataforma, cambiá
+> `startCommand` en `railway.json` a `node dist/index.js` y montá un Railway Volume
+> en `/app/data` para el SQLite.
+
+### 4.7 Verificación
 
 ```bash
 curl https://tu-dominio.com/health

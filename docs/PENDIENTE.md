@@ -87,6 +87,9 @@ usuarios.
 - [x] `npm run platform:migrate` documentado como paso de release (además de
   ejecutarse automáticamente al arrancar).
 - [x] `npm run smoke:platform` verifica `/health`, `/ready` y la SPA.
+- [x] Railway: `railway.json` arranca la plataforma y usa `/health`; se quitó la
+  instrucción de montaje del `Dockerfile` (Railway la rechazaba) y el healthcheck
+  respeta `PORT`. Ver `docs/PLATFORM_DEPLOYMENT.md` §4.6.
 
 ---
 

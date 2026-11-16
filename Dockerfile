@@ -45,10 +45,12 @@ USER node
 
 EXPOSE 4000
 
-VOLUME ["/app/data", "/app/backups"]
-
+# Railway no admite puntos de montaje declarados en el Dockerfile: configurá el
+# almacenamiento desde el dashboard. La plataforma no necesita disco local
+# (Neon + WAHA), así que solo creamos los directorios para el modo legado.
+# HEALTHCHECK usa $PORT en lugar de 4000 fijo: Railway asigna el puerto dinámicamente.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 4000) + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "dist/index.js"]

@@ -15,6 +15,7 @@
     "start:platform": "node dist/platform/index.js",
     "platform:migrate": "tsx src/platform/migrate.ts",
     "smoke:platform": "node scripts/smoke-platform.mjs",
+    "verify:deploy": "node scripts/verify-deploy.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
