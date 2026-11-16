@@ -71,7 +71,9 @@ async function main() {
     throw new Error('WAHA no respondió a tiempo. Revisá el contenedor y la API key.');
   }
 
-  const list = await request('/api/sessions');
+  // all=true incluye sesiones detenidas o fallidas, que de otro modo no
+  // aparecen en el listado y se recrearían sin necesidad.
+  const list = await request('/api/sessions?all=true');
   if (!list.response.ok) {
     throw new Error(
       `No se pudieron listar las sesiones (HTTP ${list.response.status}): ${JSON.stringify(
@@ -101,7 +103,23 @@ async function main() {
   } else {
     const status = statusOf(existing);
     console.log(`La sesión "${session}" ya existe. Estado: ${status}`);
-    if (status !== 'WORKING' && status !== 'SCAN_QR_CODE') {
+
+    if (status === 'FAILED') {
+      // /start no hace nada cuando la sesión está FAILED (por ejemplo,
+      // después de que expiraron los QR). Hay que reiniciarla.
+      console.log(`Reiniciando sesión "${session}"...`);
+      const restarted = await request(
+        `/api/sessions/${encodeURIComponent(session)}/restart`,
+        { method: 'POST' },
+      );
+      if (!restarted.response.ok) {
+        throw new Error(
+          `No se pudo reiniciar la sesión (HTTP ${restarted.response.status}): ${JSON.stringify(
+            restarted.body,
+          ).slice(0, 800)}`,
+        );
+      }
+    } else if (status === 'STOPPED') {
       console.log(`Arrancando sesión "${session}"...`);
       const started = await request(
         `/api/sessions/${encodeURIComponent(session)}/start`,
@@ -114,11 +132,20 @@ async function main() {
           ).slice(0, 800)}`,
         );
       }
+    } else if (status === 'WORKING') {
+      console.log('La sesión ya está conectada.');
+    } else {
+      console.log(
+        `La sesión está en estado ${status}; no hace falta reiniciarla.`,
+      );
     }
   }
 
   console.log('');
-  console.log('Sesión lista. Abrí el dashboard de WAHA y escaneá el QR:');
+  console.log('Para escanear el QR abrí el panel del bot:');
+  console.log('  http://localhost:4000/admin (pestaña "Conectar WhatsApp")');
+  console.log('');
+  console.log('También podés usar el dashboard de WAHA:');
   console.log(`  ${baseUrl}/dashboard`);
   console.log('');
   console.log('Cuando el estado sea WORKING, el bot ya puede responder.');

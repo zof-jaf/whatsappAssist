@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
+import { WahaError } from '../src/errors.js';
 import {
   createTestContext,
   makeMessageEvent,
@@ -101,6 +102,112 @@ describe('API de administración', () => {
     const ready = await request(ctx.app).get('/ready');
     expect(ready.status).toBe(200);
     expect(ready.body.status).toBe('ready');
+  });
+
+  it('expone el estado y el QR de la sesión de WhatsApp', async () => {
+    const working = await request(ctx.app)
+      .get('/api/admin/whatsapp/status')
+      .set(AUTH);
+    expect(working.status).toBe(200);
+    expect(working.body).toMatchObject({
+      ok: true,
+      exists: true,
+      status: 'WORKING',
+      qrAvailable: false,
+    });
+    expect(working.body.dashboardUrl).toContain('/dashboard');
+
+    ctx.waha.sessionStatus = 'SCAN_QR_CODE';
+    const scan = await request(ctx.app)
+      .get('/api/admin/whatsapp/status')
+      .set(AUTH);
+    expect(scan.body.status).toBe('SCAN_QR_CODE');
+    expect(scan.body.qrAvailable).toBe(true);
+
+    const qr = await request(ctx.app)
+      .get('/api/admin/whatsapp/qr')
+      .set(AUTH);
+    expect(qr.status).toBe(200);
+    expect(qr.body.status).toBe('SCAN_QR_CODE');
+    expect(qr.body.dataUrl).toMatch(/^data:image\/png;base64,/);
+    expect(qr.body.dataUrl).toContain(ctx.waha.qrData);
+    expect(ctx.waha.qrFetches).toBe(1);
+  });
+
+  it('no devuelve QR si la sesión no está esperando escaneo', async () => {
+    const response = await request(ctx.app)
+      .get('/api/admin/whatsapp/qr')
+      .set(AUTH);
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('QR_NOT_AVAILABLE');
+    expect(ctx.waha.qrFetches).toBe(0);
+  });
+
+  it('informa cuando la sesión de WAHA todavía no existe', async () => {
+    ctx.waha.sessionExists = false;
+    const response = await request(ctx.app)
+      .get('/api/admin/whatsapp/status')
+      .set(AUTH);
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.exists).toBe(false);
+    expect(response.body.status).toBeNull();
+    expect(response.body.qrAvailable).toBe(false);
+  });
+
+  it('informa cuando WAHA no responde', async () => {
+    ctx.waha.failSession = new WahaError('WAHA caído', 502);
+    const response = await request(ctx.app)
+      .get('/api/admin/whatsapp/status')
+      .set(AUTH);
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(false);
+    expect(response.body.error).toContain('WAHA caído');
+  });
+
+  it('crea la sesión de WhatsApp si no existe', async () => {
+    ctx.waha.sessionExists = false;
+    const response = await request(ctx.app)
+      .post('/api/admin/whatsapp/connect')
+      .set(AUTH);
+    expect(response.status).toBe(200);
+    expect(response.body.action).toBe('created');
+    expect(response.body.exists).toBe(true);
+    expect(ctx.waha.createdSessions).toBe(1);
+    expect(ctx.waha.startedSessions).toBe(0);
+    expect(ctx.waha.restartedSessions).toBe(0);
+  });
+
+  it('reinicia una sesión fallida al conectar', async () => {
+    ctx.waha.sessionStatus = 'FAILED';
+    const response = await request(ctx.app)
+      .post('/api/admin/whatsapp/connect')
+      .set(AUTH);
+    expect(response.status).toBe(200);
+    expect(response.body.action).toBe('restarted');
+    expect(response.body.status).toBe('STARTING');
+    expect(ctx.waha.restartedSessions).toBe(1);
+  });
+
+  it('no reinicia una sesión que ya está esperando el QR', async () => {
+    ctx.waha.sessionStatus = 'SCAN_QR_CODE';
+    const response = await request(ctx.app)
+      .post('/api/admin/whatsapp/connect')
+      .set(AUTH);
+    expect(response.status).toBe(200);
+    expect(response.body.action).toBe('none');
+    expect(response.body.status).toBe('SCAN_QR_CODE');
+    expect(ctx.waha.restartedSessions).toBe(0);
+  });
+
+  it('permite reiniciar la sesión manualmente', async () => {
+    ctx.waha.sessionStatus = 'FAILED';
+    const response = await request(ctx.app)
+      .post('/api/admin/whatsapp/restart')
+      .set(AUTH);
+    expect(response.status).toBe(200);
+    expect(response.body.action).toBe('restarted');
+    expect(ctx.waha.restartedSessions).toBe(1);
   });
 
   it('lista, busca y pagina conversaciones', async () => {
@@ -290,10 +397,14 @@ describe('API de administración', () => {
     expect(page.headers['content-type']).toContain('text/html');
     expect(page.text).toContain('WhatsApp AI Bot');
     expect(page.text).toContain('/admin/app.js');
+    expect(page.text).toContain('Conectar WhatsApp');
+    expect(page.text).toContain('whatsapp-qr');
 
     const script = await request(ctx.app).get('/admin/app.js');
     expect(script.status).toBe(200);
     expect(script.headers['content-type']).toContain('javascript');
+    expect(script.text).toContain('shouldAutoConnectWhatsApp');
+    expect(script.text).toContain('WHATSAPP_REFRESH_MS');
 
     const styles = await request(ctx.app).get('/admin/styles.css');
     expect(styles.status).toBe(200);

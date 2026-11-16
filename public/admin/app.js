@@ -2,6 +2,7 @@
 
 const TOKEN_KEY = 'wa_admin_token';
 const REFRESH_MS = 20_000;
+const WHATSAPP_REFRESH_MS = 5_000;
 
 const state = {
   token: '',
@@ -12,6 +13,21 @@ const state = {
   detail: null,
   currentId: null,
   refreshTimer: null,
+  whatsapp: {
+    ok: null,
+    exists: null,
+    status: null,
+    me: null,
+    error: null,
+    qrDataUrl: '',
+    qrHint: '',
+    dashboardUrl: '',
+    lastUpdated: null,
+    loading: false,
+    timer: null,
+    autoConnects: 0,
+    autoConnectAt: 0,
+  },
   conversations: {
     items: [],
     total: 0,
@@ -21,6 +37,32 @@ const state = {
     status: 'all',
     loaded: false,
     loading: false,
+  },
+  tattoo: {
+    configured: false,
+    phone: null,
+    displayPhone: null,
+    chatId: null,
+    artistName: 'tatuador',
+    source: 'none',
+    countryCode: '57',
+    loaded: false,
+  },
+  notion: {
+    configured: false,
+    ready: false,
+    tokenSet: false,
+    tokenSource: 'none',
+    databaseId: null,
+    databaseTitle: null,
+    databaseUrl: null,
+    dateProperty: null,
+    titleProperty: null,
+    statusProperty: null,
+    warning: null,
+    lastError: null,
+    checkedAt: null,
+    loaded: false,
   },
 };
 
@@ -43,6 +85,7 @@ const els = {
   panels: {
     overview: $('#tab-overview'),
     conversations: $('#tab-conversations'),
+    whatsapp: $('#tab-whatsapp'),
     system: $('#tab-system'),
   },
   statsGrid: $('#stats-grid'),
@@ -75,7 +118,32 @@ const els = {
   failedJobsCount: $('#failed-jobs-count'),
   recentEvents: $('#recent-events'),
   refreshSystem: $('#refresh-system'),
+  whatsappStatusChip: $('#whatsapp-status-chip'),
+  whatsappStatus: $('#whatsapp-status'),
+  whatsappQrPanel: $('#whatsapp-qr-panel'),
+  whatsappQr: $('#whatsapp-qr'),
+  whatsappConnect: $('#whatsapp-connect'),
+  whatsappRestart: $('#whatsapp-restart'),
+  whatsappDashboardLink: $('#whatsapp-dashboard-link'),
+  whatsappInfo: $('#whatsapp-info'),
+  refreshWhatsApp: $('#refresh-whatsapp'),
+  tattooForm: $('#tattoo-form'),
+  tattooPhone: $('#tattoo-phone'),
+  tattooSave: $('#tattoo-save'),
+  tattooClear: $('#tattoo-clear'),
+  tattooStatusChip: $('#tattoo-status-chip'),
+  tattooHint: $('#tattoo-hint'),
+  notionForm: $('#notion-form'),
+  notionToken: $('#notion-token'),
+  notionDatabase: $('#notion-database'),
+  notionSave: $('#notion-save'),
+  notionTest: $('#notion-test'),
+  notionDiscover: $('#notion-discover'),
+  notionStatusChip: $('#notion-status-chip'),
+  notionHint: $('#notion-hint'),
+  notionDatabases: $('#notion-databases'),
   toastContainer: $('#toast-container'),
+  goWhatsApp: $('#go-whatsapp'),
   goConversations: $('#go-conversations'),
   goSystem: $('#go-system'),
 };
@@ -359,6 +427,7 @@ function clearStoredToken() {
 
 function showLogin(message) {
   stopAutoRefresh();
+  stopWhatsAppPolling();
   state.inApp = false;
   state.token = '';
   state.detail = null;
@@ -381,8 +450,14 @@ function showApp(overview) {
   els.appView.hidden = false;
   state.inApp = true;
   state.timeZone = overview?.bot?.timeZone;
+  state.whatsapp.autoConnects = 0;
+  state.whatsapp.autoConnectAt = 0;
   renderOverview(overview);
-  activateTab('overview');
+
+  // Si WhatsApp todavía no está conectado, mostramos primero el QR.
+  const needsWhatsApp = overview?.health?.waha?.status !== 'WORKING';
+  activateTab(needsWhatsApp ? 'whatsapp' : 'overview');
+  if (needsWhatsApp) void loadWhatsApp();
   startAutoRefresh();
 }
 
@@ -401,6 +476,14 @@ function activateTab(tab) {
   Object.entries(els.panels).forEach(([name, panel]) => {
     panel.hidden = name !== tab;
   });
+
+  if (tab === 'whatsapp') {
+    startWhatsAppPolling();
+    void loadTattoo();
+    void loadNotion();
+  } else {
+    stopWhatsAppPolling();
+  }
 }
 
 function switchTab(tab) {
@@ -409,6 +492,8 @@ function switchTab(tab) {
     void loadOverview();
   } else if (tab === 'conversations') {
     void loadConversations();
+  } else if (tab === 'whatsapp') {
+    void loadWhatsApp();
   } else if (tab === 'system') {
     void loadSystem();
   }
@@ -431,6 +516,26 @@ function stopAutoRefresh() {
   if (state.refreshTimer) {
     clearInterval(state.refreshTimer);
     state.refreshTimer = null;
+  }
+}
+
+function startWhatsAppPolling() {
+  stopWhatsAppPolling();
+  state.whatsapp.timer = setInterval(() => {
+    if (
+      state.inApp &&
+      state.tab === 'whatsapp' &&
+      document.visibilityState === 'visible'
+    ) {
+      void loadWhatsApp({ silent: true });
+    }
+  }, WHATSAPP_REFRESH_MS);
+}
+
+function stopWhatsAppPolling() {
+  if (state.whatsapp.timer) {
+    clearInterval(state.whatsapp.timer);
+    state.whatsapp.timer = null;
   }
 }
 
@@ -661,6 +766,7 @@ function renderOverview(data) {
         ? formatNumber(settings.allowedChatsConfigured)
         : 'Todos',
     ],
+    ['Tatuador', settings.tattooArtist || 'Sin configurar'],
     ['Webhook HMAC', settings.webhookHmacEnabled ? 'Activo' : 'Sin firma'],
     ['Panel admin', settings.adminEnabled ? 'Activo' : 'Desactivado'],
     ['Versión', data.version ?? '—'],
@@ -699,6 +805,580 @@ function renderOverview(data) {
     'aria-disabled',
     dashboardUrl === '#' ? 'true' : 'false',
   );
+}
+
+/* ---------- WhatsApp ---------- */
+
+const WHATSAPP_STATUS = {
+  WORKING: {
+    label: 'Conectado',
+    severity: 'ok',
+    detail: 'WhatsApp vinculado y listo para responder.',
+    hint: 'El bot ya puede recibir y enviar mensajes.',
+  },
+  SCAN_QR_CODE: {
+    label: 'Esperando escaneo',
+    severity: 'warn',
+    detail: 'Escaneá el código QR con tu teléfono.',
+    hint: 'El código se renueva automáticamente. Si vence, generá uno nuevo.',
+  },
+  STARTING: {
+    label: 'Iniciando sesión',
+    severity: 'warn',
+    detail: 'WAHA está arrancando la sesión.',
+    hint: 'El código QR aparecerá en unos segundos.',
+  },
+  FAILED: {
+    label: 'Sesión fallida',
+    severity: 'error',
+    detail: 'Los códigos QR expiraron o la sesión se cerró.',
+    hint: 'Usá “Generar QR nuevo” para reiniciar la sesión.',
+  },
+  STOPPED: {
+    label: 'Sesión detenida',
+    severity: 'warn',
+    detail: 'La sesión está detenida.',
+    hint: 'Usá “Generar QR nuevo” para arrancarla de nuevo.',
+  },
+};
+
+function applyWhatsAppData(data) {
+  state.whatsapp.ok = data.ok !== false;
+  state.whatsapp.exists = Boolean(data.exists);
+  state.whatsapp.status = data.status ?? null;
+  state.whatsapp.me = data.me ?? null;
+  state.whatsapp.error = data.error ?? null;
+  if (data.dashboardUrl) state.whatsapp.dashboardUrl = data.dashboardUrl;
+  state.whatsapp.lastUpdated = new Date().toISOString();
+  renderWhatsApp();
+}
+
+function clearWhatsAppQr() {
+  state.whatsapp.qrDataUrl = '';
+  state.whatsapp.qrHint = '';
+  els.whatsappQr.removeAttribute('src');
+}
+
+async function loadWhatsApp(options = {}) {
+  if (state.whatsapp.loading) return;
+  state.whatsapp.loading = true;
+  try {
+    const data = await apiAuthed('/whatsapp/status');
+    applyWhatsAppData(data);
+
+    if (shouldAutoConnectWhatsApp(data)) {
+      await autoConnectWhatsApp();
+      return;
+    }
+
+    if (data.ok && data.status === 'SCAN_QR_CODE') {
+      await loadWhatsAppQr({ silent: options.silent });
+    } else {
+      clearWhatsAppQr();
+      renderWhatsApp();
+    }
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  } finally {
+    state.whatsapp.loading = false;
+  }
+}
+
+function shouldAutoConnectWhatsApp(data) {
+  if (!data.ok) return false;
+  if (['WORKING', 'STARTING', 'SCAN_QR_CODE'].includes(data.status)) {
+    return false;
+  }
+  if (state.whatsapp.autoConnects >= 2) return false;
+  if (Date.now() - state.whatsapp.autoConnectAt < 30_000) return false;
+  return (
+    data.exists === false ||
+    data.status === 'FAILED' ||
+    data.status === 'STOPPED'
+  );
+}
+
+async function autoConnectWhatsApp() {
+  state.whatsapp.autoConnects += 1;
+  state.whatsapp.autoConnectAt = Date.now();
+  try {
+    const data = await apiAuthed('/whatsapp/connect', { method: 'POST' });
+    applyWhatsAppData(data);
+    clearWhatsAppQr();
+
+    if (data.status === 'SCAN_QR_CODE') {
+      await loadWhatsAppQr({ silent: true });
+    }
+
+    toast(
+      data.action === 'created'
+        ? 'Sesión creada. Generando el código QR…'
+        : 'Sesión reiniciada. Generando el código QR…',
+    );
+  } catch (error) {
+    // El panel ya muestra el estado y el botón manual; evitamos duplicar el
+    // error en cada reintento automático.
+    if (error.status !== 401) {
+      state.whatsapp.qrHint =
+        error.message || 'No se pudo reiniciar la sesión automáticamente.';
+      renderWhatsApp();
+    }
+  }
+}
+
+async function loadWhatsAppQr(options = {}) {
+  try {
+    const data = await apiAuthed('/whatsapp/qr');
+    state.whatsapp.qrHint = '';
+    if (data.dataUrl) {
+      state.whatsapp.qrDataUrl = data.dataUrl;
+      els.whatsappQr.src = data.dataUrl;
+    }
+  } catch (error) {
+    if (error.status === 409) {
+      // WAHA todavía está generando el QR: es un estado transitorio.
+      state.whatsapp.qrHint = error.message;
+    } else if (!options.silent) {
+      handleError(error);
+    }
+  } finally {
+    renderWhatsApp();
+  }
+}
+
+function renderWhatsApp() {
+  const whatsapp = state.whatsapp;
+  const meta = WHATSAPP_STATUS[whatsapp.status] ?? {
+    label: whatsapp.status || 'Sin sesión',
+    severity: 'neutral',
+    detail: 'No se pudo determinar el estado de la sesión.',
+    hint: 'Revisá el dashboard de WAHA para más detalles.',
+  };
+
+  let label = meta.label;
+  let severity = meta.severity;
+  let detail = meta.detail;
+  let hint = meta.hint;
+
+  if (whatsapp.ok === false) {
+    label = 'WAHA sin conexión';
+    severity = 'error';
+    detail = 'No se pudo contactar al servicio de WhatsApp.';
+    hint =
+      whatsapp.error ||
+      'Verificá que el contenedor de WAHA esté corriendo.';
+  } else if (whatsapp.exists === false) {
+    label = 'Sin sesión de WhatsApp';
+    severity = 'warn';
+    detail = 'Todavía no existe una sesión en WAHA.';
+    hint = 'Usá “Crear sesión y generar QR” para empezar.';
+  }
+
+  if (whatsapp.status === 'SCAN_QR_CODE' && whatsapp.qrHint) {
+    hint = whatsapp.qrHint;
+  }
+
+  const me = whatsapp.me;
+  const phone = me?.id ? String(me.id).split('@')[0] : '';
+  if (whatsapp.status === 'WORKING' && (phone || me?.pushName)) {
+    detail = [me?.pushName, phone].filter(Boolean).join(' · ');
+  }
+
+  els.whatsappStatusChip.className = `chip ${severity}`;
+  els.whatsappStatusChip.textContent = label;
+
+  els.whatsappStatus.innerHTML = `
+    <div class="status-main">
+      <span class="health-dot ${severity === 'neutral' ? '' : severity}"></span>
+      <div class="status-copy">
+        <strong>${esc(label)}</strong>
+        <span>${esc(detail)}</span>
+      </div>
+    </div>
+    <p class="status-hint muted small ${
+      severity === 'error' ? 'error' : ''
+    }">${esc(hint)}</p>`;
+
+  renderInfoList(els.whatsappInfo, [
+    ['Estado técnico', whatsapp.status ?? '—'],
+    [
+      'Sesión',
+      whatsapp.exists === null
+        ? 'Comprobando…'
+        : whatsapp.exists
+          ? 'Creada'
+          : 'No creada',
+    ],
+    ['Teléfono', phone || '—'],
+    ['Nombre', me?.pushName || '—'],
+    [
+      'Actualizado',
+      whatsapp.lastUpdated ? formatTime(whatsapp.lastUpdated) : '—',
+    ],
+  ]);
+
+  const showQr =
+    whatsapp.status === 'SCAN_QR_CODE' && Boolean(whatsapp.qrDataUrl);
+  els.whatsappQrPanel.hidden = !showQr;
+
+  els.whatsappConnect.hidden = false;
+  els.whatsappConnect.disabled = false;
+  if (whatsapp.ok === false) {
+    els.whatsappConnect.textContent = 'Reintentar conexión';
+  } else if (whatsapp.exists === false) {
+    els.whatsappConnect.textContent = 'Crear sesión y generar QR';
+  } else if (whatsapp.status === 'WORKING') {
+    els.whatsappConnect.hidden = true;
+  } else if (whatsapp.status === 'STARTING') {
+    els.whatsappConnect.textContent = 'Iniciando…';
+    els.whatsappConnect.disabled = true;
+  } else if (whatsapp.status === 'SCAN_QR_CODE') {
+    els.whatsappConnect.textContent = 'Actualizar QR';
+  } else {
+    els.whatsappConnect.textContent = 'Generar QR nuevo';
+  }
+
+  const canRestart =
+    whatsapp.ok === true &&
+    whatsapp.exists === true &&
+    whatsapp.status !== 'WORKING';
+  els.whatsappRestart.hidden = !canRestart;
+  els.whatsappRestart.disabled = whatsapp.status === 'STARTING';
+
+  els.whatsappDashboardLink.href = whatsapp.dashboardUrl || '#';
+}
+
+async function connectWhatsApp(button) {
+  try {
+    await withBusy(button, async () => {
+      const data = await apiAuthed('/whatsapp/connect', { method: 'POST' });
+      applyWhatsAppData(data);
+      clearWhatsAppQr();
+
+      if (data.status === 'SCAN_QR_CODE') {
+        await loadWhatsAppQr();
+      }
+
+      if (data.action === 'created') {
+        toast('Sesión creada. Generando el código QR…');
+      } else if (data.action === 'restarted') {
+        toast('Sesión reiniciada. Generando el código QR…');
+      } else {
+        toast('Estado de WhatsApp actualizado');
+      }
+    });
+  } finally {
+    renderWhatsApp();
+  }
+}
+
+async function restartWhatsApp(button) {
+  try {
+    await withBusy(button, async () => {
+      const data = await apiAuthed('/whatsapp/restart', { method: 'POST' });
+      applyWhatsAppData(data);
+      clearWhatsAppQr();
+      toast('Sesión reiniciada. El QR aparecerá en unos segundos.');
+    });
+  } finally {
+    renderWhatsApp();
+  }
+}
+
+/* ---------- Tatuador / cotizaciones ---------- */
+
+function applyTattooData(data) {
+  state.tattoo = {
+    configured: Boolean(data.configured),
+    phone: data.phone ?? null,
+    displayPhone: data.displayPhone ?? null,
+    chatId: data.chatId ?? null,
+    artistName: data.artistName ?? 'tatuador',
+    source: data.source ?? 'none',
+    countryCode: data.countryCode ?? '57',
+    loaded: true,
+  };
+
+  if (document.activeElement !== els.tattooPhone) {
+    els.tattooPhone.value = state.tattoo.phone ?? '';
+  }
+  renderTattoo();
+}
+
+function tattooSourceLabel(source) {
+  if (source === 'dashboard') return 'Guardado desde este panel';
+  if (source === 'env') return 'Configurado desde .env';
+  return 'Sin configurar';
+}
+
+function renderTattoo() {
+  const tattoo = state.tattoo;
+  const display = tattoo.displayPhone || tattoo.chatId || '';
+
+  els.tattooStatusChip.className = `chip ${
+    tattoo.configured ? 'ok' : 'warn'
+  }`;
+  els.tattooStatusChip.textContent = tattoo.configured
+    ? 'Configurado'
+    : 'Sin configurar';
+  els.tattooClear.hidden = tattoo.source !== 'dashboard';
+
+  if (tattoo.configured) {
+    els.tattooHint.classList.remove('error');
+    els.tattooHint.textContent = `${tattooSourceLabel(
+      tattoo.source,
+    )} · Las consultas de precio se envían a ${display}.`;
+  } else {
+    els.tattooHint.classList.add('error');
+    els.tattooHint.textContent =
+      'Sin configurar: el bot no puede derivar consultas de precio al tatuador.';
+  }
+}
+
+async function loadTattoo(options = {}) {
+  try {
+    const data = await apiAuthed('/tattoo');
+    applyTattooData(data);
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  }
+}
+
+function normalizeTattooInput() {
+  let digits = els.tattooPhone.value.replace(/\D/g, '');
+  if (digits.startsWith('0057')) digits = digits.slice(4);
+  if (digits.length === 12 && digits.startsWith('57')) digits = digits.slice(2);
+  els.tattooPhone.value = digits.slice(0, 10);
+}
+
+async function saveTattoo(event) {
+  event.preventDefault();
+  const phone = els.tattooPhone.value.trim();
+  if (!phone) {
+    toast('Ingresá el número del tatuador', 'error');
+    els.tattooPhone.focus();
+    return;
+  }
+
+  await withBusy(els.tattooSave, async () => {
+    const data = await apiAuthed('/tattoo', {
+      method: 'PUT',
+      body: { phone },
+    });
+    applyTattooData(data);
+    els.tattooPhone.value = data.phone ?? '';
+    toast(`Tatuador configurado: ${data.displayPhone || data.chatId}`);
+    if (state.tab === 'overview') void loadOverview({ silent: true });
+  });
+}
+
+async function clearTattoo() {
+  const confirmed = window.confirm(
+    '¿Quitar el número del tatuador guardado desde el panel? Si hay un valor en .env, se usará ese.',
+  );
+  if (!confirmed) return;
+
+  await withBusy(els.tattooClear, async () => {
+    const data = await apiAuthed('/tattoo', {
+      method: 'PUT',
+      body: { phone: '' },
+    });
+    applyTattooData(data);
+    toast('Número del tatuador quitado');
+    if (state.tab === 'overview') void loadOverview({ silent: true });
+  });
+}
+
+/* ---------- Agenda de Notion ---------- */
+
+function applyNotionData(data) {
+  state.notion = {
+    configured: Boolean(data.configured),
+    ready: Boolean(data.ready),
+    tokenSet: Boolean(data.tokenSet),
+    tokenSource: data.tokenSource ?? 'none',
+    databaseId: data.databaseId ?? null,
+    databaseTitle: data.databaseTitle ?? null,
+    databaseUrl: data.databaseUrl ?? null,
+    dateProperty: data.dateProperty ?? null,
+    titleProperty: data.titleProperty ?? null,
+    statusProperty: data.statusProperty ?? null,
+    warning: data.warning ?? null,
+    lastError: data.lastError ?? null,
+    checkedAt: data.checkedAt ?? null,
+    loaded: true,
+  };
+
+  if (document.activeElement !== els.notionDatabase) {
+    els.notionDatabase.value = state.notion.databaseId ?? '';
+  }
+  els.notionToken.value = '';
+  renderNotion();
+}
+
+function notionSourceLabel(source) {
+  if (source === 'dashboard') return 'Token guardado en el panel';
+  if (source === 'env') return 'Token configurado desde .env';
+  return 'Token sin configurar';
+}
+
+function renderNotion() {
+  const notion = state.notion;
+  let chipClass = 'neutral';
+  let chipText = 'Sin configurar';
+
+  if (notion.ready) {
+    chipClass = 'ok';
+    chipText = 'Agenda lista';
+  } else if (notion.configured) {
+    chipClass = 'warn';
+    chipText = 'Revisar agenda';
+  } else if (notion.tokenSet) {
+    chipClass = 'warn';
+    chipText = 'Falta la base';
+  }
+
+  els.notionStatusChip.className = `chip ${chipClass}`;
+  els.notionStatusChip.textContent = chipText;
+  els.notionToken.placeholder = notion.tokenSet
+    ? 'Token guardado · dejalo vacío para conservarlo'
+    : 'ntn_...';
+
+  const lines = [notionSourceLabel(notion.tokenSource)];
+  if (notion.databaseTitle) {
+    lines.push(`Base: ${notion.databaseTitle}`);
+  }
+  if (notion.dateProperty) {
+    lines.push(`Propiedad de fecha: ${notion.dateProperty}`);
+  }
+  if (notion.warning) {
+    lines.push(notion.warning);
+  }
+  if (notion.lastError) {
+    lines.push(`Último error: ${notion.lastError}`);
+  }
+  if (!notion.tokenSet && !notion.databaseId) {
+    lines.push(
+      'Compartí la base de agenda con la integración de Notion y configurala acá.',
+    );
+  }
+
+  els.notionHint.textContent = lines.join(' · ');
+  els.notionHint.classList.toggle(
+    'error',
+    Boolean(notion.lastError || notion.warning) || !notion.ready,
+  );
+}
+
+async function loadNotion(options = {}) {
+  try {
+    const data = await apiAuthed('/notion');
+    applyNotionData(data);
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  }
+}
+
+async function saveNotion(event) {
+  event.preventDefault();
+  const token = els.notionToken.value.trim();
+  const databaseId = els.notionDatabase.value.trim();
+  const body = {};
+
+  if (token) body.apiKey = token;
+  if (databaseId !== (state.notion.databaseId ?? '')) {
+    body.databaseId = databaseId;
+  }
+  if (Object.keys(body).length === 0) {
+    toast('No hay cambios para guardar en Notion');
+    return;
+  }
+
+  await withBusy(els.notionSave, async () => {
+    const data = await apiAuthed('/notion', { method: 'PUT', body });
+    applyNotionData(data);
+    els.notionDatabases.hidden = true;
+    toast(
+      data.ready
+        ? `Agenda conectada: ${data.databaseTitle || 'Notion'}`
+        : 'Configuración de Notion guardada. Revisá la base y el token.',
+    );
+  });
+}
+
+async function testNotion() {
+  await withBusy(els.notionTest, async () => {
+    const result = await apiAuthed('/notion/test', { method: 'POST' });
+    if (result.ok) {
+      toast('Conexión con Notion verificada');
+    } else {
+      toast(result.error || 'No se pudo conectar con Notion', 'error');
+    }
+    await loadNotion({ silent: true });
+  });
+}
+
+function renderNotionDatabases(databases) {
+  els.notionDatabases.innerHTML = '';
+
+  if (!databases.length) {
+    els.notionDatabases.hidden = true;
+    return;
+  }
+
+  els.notionDatabases.hidden = false;
+  for (const database of databases) {
+    const row = document.createElement('div');
+    row.className = 'notion-database-option';
+
+    const title = document.createElement('span');
+    title.textContent = database.title || database.id;
+    title.title = database.url || database.id;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button ghost small';
+    button.textContent = 'Usar esta base';
+    button.addEventListener('click', () => {
+      useNotionDatabase(database.id, button).catch(handleError);
+    });
+
+    row.append(title, button);
+    els.notionDatabases.append(row);
+  }
+}
+
+async function useNotionDatabase(databaseId, button) {
+  await withBusy(button, async () => {
+    const data = await apiAuthed('/notion', {
+      method: 'PUT',
+      body: { databaseId },
+    });
+    applyNotionData(data);
+    els.notionDatabases.hidden = true;
+    toast(
+      data.ready
+        ? `Agenda conectada: ${data.databaseTitle || 'Notion'}`
+        : 'Base guardada. Revisá la propiedad de fecha.',
+    );
+  });
+}
+
+async function discoverNotion() {
+  await withBusy(els.notionDiscover, async () => {
+    const result = await apiAuthed('/notion/discover', { method: 'POST' });
+    renderNotionDatabases(result.databases ?? []);
+
+    if (result.warning) {
+      toast(result.warning, 'error');
+    } else if ((result.databases ?? []).length === 0) {
+      toast('No hay bases compartidas con la integración', 'error');
+    } else {
+      toast(
+        `${result.databases.length} base(s) encontrada(s). Elegí la agenda.`,
+      );
+    }
+  });
 }
 
 /* ---------- Conversaciones ---------- */
@@ -1186,6 +1866,7 @@ function renderSystem(data) {
         ? formatNumber(settings.allowedChatsConfigured)
         : 'Todos',
     ],
+    ['Tatuador', settings.tattooArtist || 'Sin configurar'],
     ['Webhook HMAC', settings.webhookHmacEnabled ? 'Activo' : 'Sin firma'],
     ['Panel admin', settings.adminEnabled ? 'Activo' : 'Desactivado'],
   ]);
@@ -1316,6 +1997,32 @@ function bindEvents() {
     loadConversations({ silent: false }),
   );
   els.refreshSystem.addEventListener('click', () => loadSystem());
+  els.refreshWhatsApp.addEventListener('click', () =>
+    loadWhatsApp({ silent: false }),
+  );
+  els.whatsappConnect.addEventListener('click', () => {
+    connectWhatsApp(els.whatsappConnect).catch(handleError);
+  });
+  els.whatsappRestart.addEventListener('click', () => {
+    restartWhatsApp(els.whatsappRestart).catch(handleError);
+  });
+  els.tattooForm.addEventListener('submit', (event) => {
+    saveTattoo(event).catch(handleError);
+  });
+  els.tattooClear.addEventListener('click', () => {
+    clearTattoo().catch(handleError);
+  });
+  els.tattooPhone.addEventListener('blur', normalizeTattooInput);
+  els.notionForm.addEventListener('submit', (event) => {
+    saveNotion(event).catch(handleError);
+  });
+  els.notionTest.addEventListener('click', () => {
+    testNotion().catch(handleError);
+  });
+  els.notionDiscover.addEventListener('click', () => {
+    discoverNotion().catch(handleError);
+  });
+  els.goWhatsApp.addEventListener('click', () => switchTab('whatsapp'));
   els.goConversations.addEventListener('click', () =>
     switchTab('conversations'),
   );
@@ -1402,12 +2109,11 @@ function bindEvents() {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (
-      document.visibilityState === 'visible' &&
-      state.inApp &&
-      state.tab === 'overview'
-    ) {
+    if (document.visibilityState !== 'visible' || !state.inApp) return;
+    if (state.tab === 'overview') {
       void loadOverview({ silent: true });
+    } else if (state.tab === 'whatsapp') {
+      void loadWhatsApp({ silent: true });
     }
   });
 }

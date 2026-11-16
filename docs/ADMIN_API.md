@@ -87,7 +87,7 @@ Devuelve versión, uptime, configuración efectiva, estadísticas, salud y estad
   "bot": {
     "name": "Asistente",
     "model": "llama3.2:3b",
-    "timeZone": "America/Argentina/Buenos_Aires",
+    "timeZone": "America/Bogota",
     "enabled": true,
     "historyMaxMessages": 30,
     "summaryEnabled": true
@@ -101,7 +101,11 @@ Devuelve versión, uptime, configuración efectiva, estadísticas, salud y estad
     "summaryTriggerMessages": 30,
     "queueMaxAttempts": 5,
     "sendSeen": true,
-    "typingIndicator": true
+    "typingIndicator": true,
+    "tattooArtist": "+57 300 123 4567",
+    "tattooArtistSource": "dashboard",
+    "notionAgenda": "Agenda de tatuajes",
+    "notionAgendaReady": true
   },
   "stats": {
     "contacts": 12,
@@ -142,6 +146,203 @@ Devuelve versión, uptime, configuración efectiva, estadísticas, salud y estad
   "dashboardUrl": "http://localhost:3000/dashboard"
 }
 ```
+
+---
+
+## WhatsApp / sesión de WAHA
+
+Estos endpoints permiten vincular WhatsApp desde el panel sin entrar al
+dashboard de WAHA. Los estados posibles de una sesión son `STOPPED`,
+`STARTING`, `SCAN_QR_CODE`, `WORKING` y `FAILED`.
+
+### `GET /api/admin/whatsapp/status`
+
+Consulta el estado actual directamente a WAHA (sin caché). Siempre responde
+`200`; si WAHA no está disponible devuelve `ok: false` y `error`.
+
+```json
+{
+  "ok": true,
+  "exists": true,
+  "status": "SCAN_QR_CODE",
+  "me": null,
+  "qrAvailable": true,
+  "dashboardUrl": "http://localhost:3000/dashboard"
+}
+```
+
+Si la sesión no existe en WAHA: `exists: false`, `status: null` y
+`qrAvailable: false`.
+
+### `GET /api/admin/whatsapp/qr`
+
+Devuelve el QR vigente como PNG en base64 dentro de un data URL. Solo está
+disponible mientras el estado es `SCAN_QR_CODE`.
+
+```json
+{
+  "ok": true,
+  "status": "SCAN_QR_CODE",
+  "mimetype": "image/png",
+  "dataUrl": "data:image/png;base64,iVBORw0KGgo...",
+  "fetchedAt": "2026-01-01T12:00:00.000Z"
+}
+```
+
+- Si la sesión no está en `SCAN_QR_CODE`: `409 QR_NOT_AVAILABLE`.
+- Si WAHA todavía está generando el QR: `409 QR_NOT_AVAILABLE` (reintentar en
+  unos segundos).
+- Si la sesión no existe: `409 SESSION_NOT_FOUND`.
+
+El primer QR vence a los ~60 segundos y los siguientes a los ~20 segundos.
+WAHA genera hasta 6 códigos; después la sesión pasa a `FAILED`. El panel vuelve
+a consultar este endpoint cada 5 segundos para mostrar siempre el vigente.
+
+### `POST /api/admin/whatsapp/connect`
+
+Crea la sesión si no existe. Si está `FAILED` o `STOPPED`, la reinicia. Si está
+`STARTING`, `SCAN_QR_CODE` o `WORKING`, no hace nada.
+
+```json
+{
+  "ok": true,
+  "exists": true,
+  "action": "created",
+  "status": "STARTING",
+  "me": null,
+  "qrAvailable": false,
+  "dashboardUrl": "http://localhost:3000/dashboard"
+}
+```
+
+`action` puede ser `created`, `restarted` o `none`. Después de crear o
+reiniciar, el estado pasa por `STARTING` y luego `SCAN_QR_CODE`; hay que
+consultar `/whatsapp/qr` cuando esté listo.
+
+### `POST /api/admin/whatsapp/restart`
+
+Reinicia la sesión siempre. Si no existe, la crea. Útil si quedó trabada en
+`STARTING` o en `FAILED`. Devuelve el mismo formato que `/connect`.
+
+---
+
+## Tatuador / cotizaciones
+
+El número del tatuador que recibe las consultas de precio se puede configurar
+desde el panel y se guarda en `app_meta`. El cambio se aplica en caliente, sin
+reiniciar el bot. Si no hay valor guardado, se usa `TATTOO_ARTIST_CHAT_ID` como
+respaldo.
+
+### `GET /api/admin/tattoo`
+
+```json
+{
+  "ok": true,
+  "configured": true,
+  "phone": "3001234567",
+  "displayPhone": "+57 300 123 4567",
+  "chatId": "573001234567@c.us",
+  "artistName": "tatuador",
+  "source": "dashboard",
+  "countryCode": "57"
+}
+```
+
+`source` puede ser `dashboard` (guardado desde el panel), `env` (respaldo de
+`.env`) o `none` (sin configurar).
+
+### `PUT /api/admin/tattoo`
+
+```json
+{ "phone": "300 123 4567" }
+```
+
+Acepta un número colombiano de 10 dígitos, con o sin separadores. El panel (y la
+API) agregan `+57` automáticamente. Enviar `"phone": ""` quita el valor del panel
+y vuelve al de `.env`, si existe. Responde el mismo objeto que `GET`.
+
+Si el número no tiene 10 dígitos locales, responde `400 VALIDATION_ERROR`.
+
+El tatuador puede responder desde su propio WhatsApp aunque WAHA entregue el
+chat como `@lid`: el bot compara también el alias de teléfono que WAHA adjunta
+en el mensaje. Solo se aceptan mensajes con un precio; un saludo, una fecha o
+cualquier texto sin precio no se reenvía al cliente.
+
+---
+
+## Agenda de Notion
+
+La agenda se configura desde el panel y se guarda en `app_meta`. El token y la
+base guardados en el panel tienen prioridad sobre `NOTION_API_KEY` y
+`NOTION_DATABASE_ID`. El token nunca se devuelve en las respuestas.
+
+### `GET /api/admin/notion`
+
+```json
+{
+  "ok": true,
+  "configured": true,
+  "ready": true,
+  "tokenSet": true,
+  "tokenSource": "dashboard",
+  "databaseId": "11111111-1111-1111-1111-111111111111",
+  "databaseTitle": "Agenda de tatuajes",
+  "databaseUrl": "https://www.notion.so/...",
+  "dateProperty": "Fecha",
+  "titleProperty": "Nombre",
+  "statusProperty": "Estado",
+  "warning": null,
+  "lastError": null,
+  "checkedAt": "2026-01-01T12:00:00.000Z"
+}
+```
+
+`ready` indica que la base tiene una propiedad de fecha y se puede crear una
+cita. `tokenSource` puede ser `dashboard`, `env` o `none`.
+
+### `PUT /api/admin/notion`
+
+```json
+{
+  "apiKey": "ntn_...",
+  "databaseId": "https://www.notion.so/Agenda-11111111111111111111111111111111"
+}
+```
+
+Ambos campos son opcionales. `apiKey: ""` quita el token guardado y vuelve al de
+`.env`; `databaseId: ""` hace lo mismo con la base. Si solo se envía el token,
+el bot busca automáticamente una base compartida cuyo título contenga
+“agenda”, “cita”, “turno”, “tatuaje” o “calendario”, o la única disponible.
+
+Acepta el ID de 32 caracteres, con guiones o la URL completa de Notion. Responde
+el mismo objeto que `GET`. Si la integración no puede ver la base responde
+`400 VALIDATION_ERROR` con el detalle.
+
+### `POST /api/admin/notion/test`
+
+Verifica credenciales y esquema. Devuelve `ok`, `error` y `schema`.
+
+### `POST /api/admin/notion/discover`
+
+Lista las bases compartidas con la integración:
+
+```json
+{
+  "ok": true,
+  "databases": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "title": "Agenda de tatuajes",
+      "url": "https://www.notion.so/..."
+    }
+  ],
+  "suggestedId": "11111111-1111-1111-1111-111111111111",
+  "warning": null
+}
+```
+
+Si no hay bases compartidas, `warning` explica cómo conectar la integración
+desde Notion.
 
 ---
 
@@ -498,7 +699,7 @@ Vista consolidada para la pestaña Sistema:
   "settings": {
     "model": "llama3.2:3b",
     "botName": "Asistente",
-    "timeZone": "America/Argentina/Buenos_Aires",
+    "timeZone": "America/Bogota",
     "historyMaxMessages": 30,
     "historyMaxChars": 12000,
     "summaryEnabled": true,

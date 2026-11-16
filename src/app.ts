@@ -13,6 +13,8 @@ import type { WahaClient } from './clients/waha.js';
 import type { OllamaClient } from './clients/ollama.js';
 import type { ConversationService } from './services/conversation-service.js';
 import type { HealthService } from './services/health-service.js';
+import type { NotionSettingsService } from './services/notion-settings-service.js';
+import type { TattooSettingsService } from './services/tattoo-settings-service.js';
 import type { InboundWorker } from './services/worker.js';
 import type { Logger } from './logger.js';
 import { createAdminAuthMiddleware } from './middleware/admin-auth.js';
@@ -31,6 +33,8 @@ export interface AppDependencies {
   ollama: OllamaClient;
   conversations: ConversationService;
   health: HealthService;
+  tattoo: TattooSettingsService;
+  notion: NotionSettingsService;
   worker?: InboundWorker;
   logger: Logger;
   publicDir: string;
@@ -155,6 +159,9 @@ export function createApp(deps: AppDependencies): express.Express {
       repos,
       health,
       conversations,
+      tattoo: deps.tattoo,
+      notion: deps.notion,
+      waha: deps.waha,
       worker,
     }),
   );

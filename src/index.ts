@@ -7,6 +7,11 @@ import { createRepositories, type Repositories } from './db/repositories/index.j
 import { WahaClient } from './clients/waha.js';
 import { OllamaClient } from './clients/ollama.js';
 import { SummaryService } from './services/summary-service.js';
+import { QuoteService } from './services/quote-service.js';
+import { SchedulingService } from './services/scheduling-service.js';
+import { NotionSettingsService } from './services/notion-settings-service.js';
+import { ResponseGuideService } from './services/response-guide-service.js';
+import { TattooSettingsService } from './services/tattoo-settings-service.js';
 import { ConversationService } from './services/conversation-service.js';
 import { HealthService } from './services/health-service.js';
 import { InboundWorker } from './services/worker.js';
@@ -85,16 +90,45 @@ async function main(): Promise<void> {
   }
 
   const repos = createRepositories(db);
+  const tattoo = new TattooSettingsService(config, repos, logger);
+  tattoo.load();
+
+  const notion = new NotionSettingsService(config, repos, logger);
+  await notion.initialize();
+
+  if (!tattoo.chatId) {
+    logger.warn(
+      'El número del tatuador no está configurado: cargalo desde el panel (Conectar WhatsApp) o definí TATTOO_ARTIST_CHAT_ID en .env. Sin esto el bot no puede derivar consultas de precio.',
+    );
+  } else {
+    logger.info(
+      { chatId: tattoo.chatId, source: tattoo.source },
+      'Tatuador configurado para cotizaciones',
+    );
+  }
+
   const waha = new WahaClient(config.waha);
   const ollama = new OllamaClient(config.ollama);
   const health = new HealthService(config, db, repos, waha, ollama);
   const summaries = new SummaryService(config, repos, ollama, logger);
+  const quotes = new QuoteService(config, repos, waha, logger);
+  const scheduling = new SchedulingService(
+    config,
+    repos,
+    waha,
+    notion,
+    logger,
+  );
+  const responseGuide = new ResponseGuideService(config, logger);
   const conversations = new ConversationService(
     config,
     repos,
     waha,
     ollama,
     summaries,
+    quotes,
+    scheduling,
+    responseGuide,
     logger,
   );
   const worker = new InboundWorker(config, repos.jobs, conversations, logger);
@@ -108,6 +142,8 @@ async function main(): Promise<void> {
     ollama,
     conversations,
     health,
+    tattoo,
+    notion,
     worker,
     logger,
     publicDir: resolve(process.cwd(), 'public'),

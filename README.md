@@ -10,6 +10,7 @@ Bot de WhatsApp con **IA local**, historial persistente y panel de administraci�
 
 - [Qué incluye](#qué-incluye)
 - [Cómo funciona](#cómo-funciona)
+- [Cotización de tatuajes](#cotización-de-tatuajes)
 - [Por qué no n8n](#por-qué-no-n8n)
 - [Requisitos](#requisitos)
 - [Inicio rápido con Docker](#inicio-rápido-con-docker)
@@ -39,13 +40,17 @@ Bot de WhatsApp con **IA local**, historial persistente y panel de administraci�
 - **Historial completo** de mensajes entrantes, respuestas del bot, comandos, avisos del sistema y errores.
 - **Resúmenes automáticos** de las conversaciones largas para no perder contexto ni inflar el prompt.
 - **Contexto configurable** por cantidad de mensajes y por caracteres.
+- **Flujo de cotización**: detecta consultas, deriva el precio al tatuador y reenvía imágenes; la configuración está en [Cotización de tatuajes](#cotización-de-tatuajes).
 - **Comandos** `/ayuda`, `/reset` y `/estado`.
+- **Flujo de cotización de tatuajes**: detecta pedidos de precio, medidas o imágenes, deriva la consulta al tatuador con un código `COT-000123`, reenvía la multimedia y publica la respuesta del tatuador en el chat del cliente.
+- **Guía de respuestas editable** (`formato_respuestas.md`) que se inyecta en cada prompt y se relee cada minuto, sin reiniciar el bot.
+- **Red de seguridad anti-precios inventados**: si la IA intenta cotizar por su cuenta, negarse a dar precios o preguntar por el significado, la respuesta se reemplaza por una segura.
 - **Panel web** con estado de dependencias, cola, conversaciones, búsqueda, historial, resumen, envío manual, activación/desactivación de IA, archivado, exportación y eventos.
 - **API administrativa** protegida con token Bearer.
 - **Healthchecks** (`/health`, `/ready`) y cierre ordenado.
 - **Backups online** de SQLite sin detener el bot.
 - **Docker Compose** con WAHA, Ollama, descarga automática del modelo, inicialización de la sesión y el bot.
-- **96 pruebas automatizadas** que no necesitan WAHA, Ollama ni Docker.
+- **127 pruebas automatizadas** que no necesitan WAHA, Ollama ni Docker.
 
 ---
 
@@ -92,6 +97,67 @@ Flujo de un mensaje:
 - **WAHA en lugar de Baileys directo**: WAHA mantiene la sesión, el QR, los reintentos y la API HTTP; el bot solo consume eventos.
 - **Ollama en lugar de una API en la nube**: privacidad y costo cero por token. A cambio, requiere RAM/CPU y la calidad depende del modelo elegido.
 - **Sin túnel de Cloudflare**: WAHA y el bot comparten la red interna de Docker (`http://bot:4000/webhook`). El webhook no se expone a internet.
+
+---
+
+## Cotización de tatuajes
+
+El bot está orientado a **cotizar tatuajes y retoques**, no a conversar sobre la historia o el significado del diseño.
+
+### Flujo
+
+1. El cliente cuenta qué tattoo o retoque quiere. El bot pide solo datos concretos: tamaño en cm, zona del cuerpo, imagen de referencia, color/negro y si es un retoque.
+2. Cuando el cliente pide un precio, manda una medida o una imagen, el bot crea una consulta con código `COT-000123` y se la envía al tatuador configurado desde el panel.
+3. Si la consulta incluye una imagen, el bot la descarga desde WAHA y se la reenvía al tatuador.
+4. El tatuador responde por WhatsApp. Si hay una sola consulta pendiente puede contestar directamente; si hay varias, debe incluir el código (`COT-000123`). **El tatuador solo define el precio**: si su mensaje no contiene un precio, el bot no lo reenvía al cliente y le pide que responda con el valor.
+5. El bot publica la respuesta en el chat del cliente y agrega una pregunta para coordinar día y horario.
+6. Cuando el cliente elige día y hora, el bot crea la cita en la agenda de Notion y recién entonces la confirma. Si Notion no está configurado o falla, avisa al tatuador para que intervenga en vez de confirmar una cita inexistente.
+
+La identificación del tatuador funciona aunque WAHA entregue su chat como `@lid`: el bot lee el alias de teléfono (`remoteJidAlt`) y lo compara con el número configurado. Así el tatuador puede responder desde su propio WhatsApp sin que el bot lo trate como cliente.
+
+### Guía de respuestas
+
+`formato_respuestas.md` define el tono, los datos que se piden, las frases prohibidas y ejemplos correctos e incorrectos. Se inyecta en cada prompt y se relee como máximo un minuto después de editarlo, sin reiniciar el bot.
+
+En Docker el archivo está montado como solo lectura:
+
+```yaml
+- ./formato_respuestas.md:/app/formato_respuestas.md:ro
+```
+
+### Seguridad de precios
+
+El bot nunca inventa precios. Si el modelo responde con un valor, se niega a cotizar o vuelve a preguntar por el significado, la respuesta se reemplaza automáticamente por una segura antes de enviarla.
+
+### Número del tatuador
+
+Se configura desde el panel, en **Conectar WhatsApp → Tatuador · Cotizaciones**. Ingresá el número colombiano **sin código de país**: el panel agrega `+57` automáticamente y lo guarda en la base. El cambio se aplica al instante, sin reiniciar el bot.
+
+Para despliegues automatizados también podés fijarlo en `.env`; el valor guardado desde el panel tiene prioridad y, al quitarlo, se vuelve al de `.env`.
+
+### Configuración mínima
+
+```dotenv
+# Opcional: 10 dígitos locales o formato internacional completo
+TATTOO_ARTIST_CHAT_ID=573001234567
+TATTOO_ARTIST_NAME=taturador
+RESPONSE_GUIDE_PATH=./formato_respuestas.md
+QUOTE_REQUEST_TTL_HOURS=48
+```
+
+`TATTOO_ARTIST_CHAT_ID` acepta 10 dígitos locales (`3001234567`), un número con formato (`+57 300 123 4567`) o el ID completo (`573001234567@c.us`). Si no configurás ni el panel ni la variable, el bot no puede derivar consultas de precio.
+
+### Agenda de Notion
+
+Las citas se registran en una base de Notion. Configurala desde el panel, en **Conectar WhatsApp → Agenda · Notion**:
+
+1. Creá una integración en Notion y copiá su token (`ntn_...`).
+2. En Notion, abrí la base de agenda, entrá en **••• → Conexiones** y agregá la integración. Sin este paso, la API no puede ver la base.
+3. Pegá el token y el enlace de la base en el panel. El bot detecta las propiedades de título, fecha, cliente, teléfono, código, precio y estado; si falta la propiedad de fecha, intenta crearla.
+
+La base debe tener una propiedad de tipo **fecha**. Si Notion no está disponible, la cita no se confirma: el bot avisa al tatuador con el día y la hora elegidos para que la cargue manualmente. También podés fijar `NOTION_API_KEY` y `NOTION_DATABASE_ID` en `.env`; el panel tiene prioridad.
+
+El agendamiento entiende expresiones como `2 de diciembre 4pm`, `el 2/12 a las 16:00`, `el sábado a las 3 de la tarde`, `mañana 10am` o `hoy a las 4pm`. Si el cliente manda el día y la hora en mensajes separados, el bot los combina.
 
 ---
 
@@ -192,21 +258,29 @@ docker compose logs -f bot
 
 ### 4. Escanear el QR de WhatsApp
 
-Abrí:
+Abrí el panel del bot:
 
 ```text
-http://localhost:3000/dashboard
+http://localhost:4000/admin
 ```
 
-Usuario y contraseña del dashboard: los valores `WAHA_DASHBOARD_USERNAME` y `WAHA_DASHBOARD_PASSWORD` de tu `.env` (por defecto `admin` y una contraseña aleatoria generada por `npm run setup`).
+Ingresá el `ADMIN_TOKEN` de tu `.env`. Si la sesión todavía no está conectada,
+el panel abre directamente la pestaña **Conectar WhatsApp** y muestra el código
+QR. Escanealo desde WhatsApp → Dispositivos vinculados → Vincular dispositivo.
 
-Si la sesión no aparece o quedó detenida:
+El código se renueva solo. Si la sesión quedó en `FAILED` (por ejemplo, porque
+vencieron los 6 QR sin escanear), usá **Generar QR / Conectar** en el mismo
+panel. También podés ejecutar:
 
 ```powershell
 npm run waha:init
 ```
 
 Ese comando también sirve fuera de Docker si `WAHA_BASE_URL` apunta a tu instancia.
+
+El dashboard de WAHA (`http://localhost:3000/dashboard`, con
+`WAHA_DASHBOARD_USERNAME` y `WAHA_DASHBOARD_PASSWORD`) sigue disponible como
+alternativa, pero ya no es necesario para vincular WhatsApp.
 
 Cuando el estado de la sesión sea `WORKING`, el bot ya puede responder.
 
@@ -219,6 +293,8 @@ http://localhost:4000/admin
 Ingresá el `ADMIN_TOKEN`. El panel permite:
 
 - ver el estado de SQLite, WAHA y Ollama;
+- generar y escanear el QR de WhatsApp sin salir del panel;
+- reiniciar la sesión si quedó fallida o detenida;
 - revisar la cola y los trabajos fallidos;
 - buscar conversaciones y leer el historial completo;
 - ver el resumen activo y cuántos mensajes están en contexto;
@@ -237,6 +313,8 @@ Escribile al número conectado desde otro teléfono. Deberías recibir:
 1. el visto (`sendSeen`) si `SEND_SEEN=true`;
 2. el indicador de escritura (`TYPING_INDICATOR=true`);
 3. una respuesta generada por Ollama.
+
+Para probar la cotización, configurá el número del tatuador desde el panel (pestaña **Conectar WhatsApp**) y escribile desde otro teléfono algo como “¿Cuánto sale un tatuaje de 10 cm en el antebrazo?”: el bot debe avisarte que consulta al tatuador y enviarle la consulta a ese chat con un código `COT-000001`. Respondé desde el chat del tatuador con el precio; el bot lo publica en el chat del cliente y continúa con la agenda.
 
 Si no responde, revisá:
 
@@ -314,11 +392,17 @@ npm run waha:init
 
 ### Código QR
 
-1. Abrí `http://localhost:3000/dashboard`.
-2. Ingresá con las credenciales del dashboard.
-3. Buscá la sesión `default`.
+1. Abrí `http://localhost:4000/admin`.
+2. Ingresá el `ADMIN_TOKEN`.
+3. Si WhatsApp no está conectado, el panel abre la pestaña **Conectar WhatsApp**.
 4. Escaneá el QR desde WhatsApp → Dispositivos vinculados → Vincular dispositivo.
 5. Esperá el estado `WORKING`.
+
+El primer QR vence a los ~60 segundos y los siguientes a los ~20 segundos.
+WAHA genera hasta 6 códigos; si ninguno se escanea, la sesión pasa a `FAILED`.
+El panel la reinicia sola al abrir la pestaña (hasta dos intentos) y vuelve a
+mostrar el QR. También podés usar **Generar QR / Conectar** o `npm run waha:init`,
+que reinicia la sesión con el endpoint correcto.
 
 La sesión se guarda en el volumen `waha_sessions`, así que no hace falta escanear el QR en cada reinicio.
 
@@ -327,7 +411,8 @@ La sesión se guarda en el volumen `waha_sessions`, así que no hace falta escan
 - Confirmá que WAHA esté corriendo: `docker compose ps`.
 - Revisá los logs: `docker compose logs --tail=200 waha`.
 - Verificá que `WAHA_PUBLIC_URL` sea la URL que ves en el navegador.
-- Reiniciá la sesión desde el dashboard o con `npm run waha:init`.
+- Usá **Reiniciar sesión** o **Generar QR / Conectar** en la pestaña Conectar WhatsApp.
+- Si la sesión está en `FAILED`, `npm run waha:init` ahora la reinicia automáticamente.
 
 ### Número recomendado
 
@@ -346,6 +431,7 @@ Usá un número exclusivo para el bot o un dispositivo vinculado. No uses tu nú
 Secciones:
 
 - **Resumen:** métricas, dependencias, configuración efectiva y cola.
+- **Conectar WhatsApp:** estado de la sesión, QR para escanear, creación/reinicio de la sesión y accesos al dashboard de WAHA.
 - **Conversaciones:** búsqueda, filtro por estado, paginación, historial paginado, resumen, contexto, envío manual, archivado, reset y exportación.
 - **Sistema:** salud, configuración, trabajos fallidos y últimos 50 eventos del webhook.
 
@@ -431,7 +517,7 @@ Todo se configura por variables de entorno en `.env`. Los valores se validan al 
 | `PORT` | `4000` | Puerto HTTP local (en Docker el bot siempre usa 4000 dentro del contenedor) |
 | `TRUST_PROXY` | `false` | Ponelo en `true` detrás de un reverse proxy |
 | `BODY_LIMIT` | `1mb` | Límite del cuerpo JSON |
-| `TIMEZONE` | `America/Argentina/Buenos_Aires` | Zona horaria IANA para el prompt |
+| `TIMEZONE` | `America/Bogota` | Zona horaria IANA para el prompt y las citas |
 | `ADMIN_ENABLED` | `true` | Habilita `/api/admin` |
 | `ADMIN_TOKEN` | — | Token Bearer, mínimo 16 caracteres (lo genera `npm run setup`) |
 
@@ -494,7 +580,24 @@ Modelos sugeridos:
 | `ALLOWED_CHAT_IDS` | vacío | Lista separada por comas; vacío = cualquier chat directo |
 | `AI_FALLBACK_REPLY` | mensaje técnico | Respuesta si Ollama falla |
 
-`ALLOWED_CHAT_IDS` acepta un número con o sin formato (`5491111111111`, `+54 9 11 1111-1111`) o un ID completo (`5491111111111@c.us`). Se normaliza al arrancar.
+`ALLOWED_CHAT_IDS` acepta un número con o sin formato (`5491111111111`, `+54 9 11 1111-1111`) o un ID completo (`5491111111111@c.us`). Se normaliza al arrancar. Si configurás una lista, el chat del tatuador se agrega automáticamente para que sus respuestas no se descarten.
+
+### Cotización de tatuajes
+
+| Variable | Default | Descripción |
+|---|---|---|
+| `TATTOO_ARTIST_CHAT_ID` | — | Respaldo del número del tatuador. El panel tiene prioridad; acepta 10 dígitos locales o formato internacional |
+| `TATTOO_ARTIST_NAME` | `tatuador` | Nombre que usa el bot al referirse al tatuador |
+| `RESPONSE_GUIDE_PATH` | `./formato_respuestas.md` | Guía de respuestas inyectada en el prompt |
+| `RESPONSE_GUIDE_MAX_CHARS` | `12000` | Recorte máximo de la guía |
+| `QUOTE_REQUEST_TTL_HOURS` | `48` | Horas que una consulta queda pendiente antes de vencer |
+
+### Agenda de Notion
+
+| Variable | Default | Descripción |
+|---|---|---|
+| `NOTION_API_KEY` | — | Respaldo del token de la integración. El panel tiene prioridad |
+| `NOTION_DATABASE_ID` | — | Respaldo del ID o URL de la base de agenda. El panel tiene prioridad |
 
 ### Resúmenes
 
@@ -690,12 +793,20 @@ Si cambiaste `OLLAMA_MODEL`, descargá el nuevo modelo y recreá el bot.
 
 ### El QR no aparece o la sesión queda en `SCAN_QR_CODE`
 
+1. Abrí `http://localhost:4000/admin` → **Conectar WhatsApp**.
+2. Si el estado es `FAILED` o `STOPPED`, usá **Generar QR / Conectar**.
+3. Si sigue sin aparecer, revisá los logs:
+
 ```powershell
 npm run waha:init
 docker compose logs --tail=200 waha
 ```
 
-Abrí `http://localhost:3000/dashboard` con las credenciales del `.env`.
+`npm run waha:init` lista también las sesiones detenidas y reinicia las que
+están en `FAILED` (el endpoint `/start` no recupera una sesión fallida).
+
+El dashboard de WAHA (`http://localhost:3000/dashboard`) sigue disponible con
+las credenciales del `.env` como alternativa.
 
 Si con el motor `WEBJS` la sesión pasa a `FAILED` justo después de escanear el QR (en los logs aparece `Session has been logged out`), cambiá a `WAHA_ENGINE=NOWEB` en `.env`, borrá el volumen de sesiones y recreá WAHA:
 
@@ -790,6 +901,7 @@ whatsapp/
 ├─ docs/                     # base de datos, operaciones y API
 ├─ docker-compose.yml
 ├─ Dockerfile
+├─ formato_respuestas.md     # Guía de respuestas del estudio
 ├─ .env.example
 └─ README.md
 ```
@@ -805,7 +917,7 @@ Documentación adicional:
 ## Limitaciones conocidas
 
 - **Un solo proceso de bot.** La cola y SQLite están pensadas para una instancia. No escales horizontalmente sin cambiar a Postgres y una cola distribuida.
-- **Solo texto y metadata de multimedia.** No se transcriben audios ni se analizan imágenes; un mensaje multimedia sin texto recibe un aviso.
+- **Solo texto y metadata de multimedia.** No se transcriben audios ni se analizan imágenes. Las imágenes de una consulta de cotización se reenvían al tatuador, pero el bot no interpreta su contenido.
 - **Los mensajes enviados desde el teléfono no se capturan.** Solo se guardan los que pasan por el bot o por el panel.
 - **La calidad depende del modelo.** Un modelo de 3B es rápido pero limitado; uno de 7B/8B responde mejor y consume más RAM.
 - **WAHA Core tiene límites.** Una sesión y funciones avanzadas de pago según el caso de uso.

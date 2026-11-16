@@ -11,7 +11,8 @@ import {
   parseSessionStatusEvent,
   type WahaWebhookEvent,
 } from '../domain/waha.js';
-import { phoneFromWaId } from '../utils/text.js';
+import { phoneFromJid } from '../utils/text.js';
+import { isArtistChatIdentity } from '../domain/phones.js';
 import { errorMessage } from '../utils/async.js';
 
 export interface WebhookRouterDeps {
@@ -20,18 +21,31 @@ export interface WebhookRouterDeps {
   logger: Logger;
 }
 
-function isAllowedChat(chatId: string, allowed: Set<string>): boolean {
+function isAllowedChat(
+  chatId: string,
+  phoneJid: string | null,
+  allowed: Set<string>,
+): boolean {
   if (allowed.size === 0) return true;
 
   const normalized = chatId.toLowerCase();
   if (allowed.has(normalized)) return true;
 
-  const phone = phoneFromWaId(chatId);
-  if (phone) {
-    return allowed.has(phone) || allowed.has(`${phone}@c.us`);
+  for (const candidate of [chatId, phoneJid]) {
+    const phone = phoneFromJid(candidate);
+    if (!phone) continue;
+    if (allowed.has(phone) || allowed.has(`${phone}@c.us`)) return true;
   }
 
   return false;
+}
+
+function isArtistChat(
+  chatId: string,
+  phoneJid: string | null,
+  config: AppConfig,
+): boolean {
+  return isArtistChatIdentity(config.tattoo.artistChatId, chatId, phoneJid);
 }
 
 export function createWebhookRouter(deps: WebhookRouterDeps): Router {
@@ -163,13 +177,30 @@ export function createWebhookRouter(deps: WebhookRouterDeps): Router {
         return;
       }
 
-      if (message.isGroup && config.bot.ignoreGroups) {
+      if (
+        message.isGroup &&
+        config.bot.ignoreGroups &&
+        !isArtistChat(message.chatId, message.phoneJid, config)
+      ) {
         logEvent(event, 'ignored', 'grupo');
         res.status(200).json({ ok: true, status: 'ignored', reason: 'grupo' });
         return;
       }
 
-      if (!isAllowedChat(message.chatId, config.bot.allowedChatIds)) {
+      const fromArtist = isArtistChat(
+        message.chatId,
+        message.phoneJid,
+        config,
+      );
+
+      if (
+        !fromArtist &&
+        !isAllowedChat(
+          message.chatId,
+          message.phoneJid,
+          config.bot.allowedChatIds,
+        )
+      ) {
         logger.info(
           { chatId: message.chatId },
           'Mensaje de chat no permitido ignorado',

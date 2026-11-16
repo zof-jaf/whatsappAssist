@@ -4,20 +4,27 @@ import type { AppConfig } from '../config.js';
 import type { Repositories } from '../db/repositories/index.js';
 import type { HealthService } from '../services/health-service.js';
 import type { ConversationService } from '../services/conversation-service.js';
+import type { NotionSettingsService } from '../services/notion-settings-service.js';
+import type { TattooSettingsService } from '../services/tattoo-settings-service.js';
 import type { InboundWorker } from '../services/worker.js';
 import type {
   ConversationListItem,
   MessageRow,
 } from '../db/types.js';
-import { NotFoundError, ValidationError } from '../errors.js';
+import type { WahaClient, WahaSessionInfo } from '../clients/waha.js';
+import { NotFoundError, ValidationError, WahaError } from '../errors.js';
 import { APP_VERSION } from '../version.js';
 import { preview } from '../utils/text.js';
+import { errorMessage } from '../utils/async.js';
 
 export interface AdminRouterDeps {
   config: AppConfig;
   repos: Repositories;
   health: HealthService;
   conversations: ConversationService;
+  tattoo: TattooSettingsService;
+  notion: NotionSettingsService;
+  waha: WahaClient;
   worker?: InboundWorker;
 }
 
@@ -48,6 +55,15 @@ const patchConversationSchema = z
 
 const manualMessageSchema = z.object({
   text: z.string().trim().min(1).max(6000),
+});
+
+const tattooPhoneSchema = z.object({
+  phone: z.string().trim().max(40),
+});
+
+const notionSettingsSchema = z.object({
+  apiKey: z.string().trim().max(400).optional(),
+  databaseId: z.string().trim().max(500).optional(),
 });
 
 const limitQuerySchema = z.object({
@@ -97,6 +113,14 @@ function mapMessage(message: MessageRow) {
   };
 }
 
+function isSessionNotFound(error: unknown): boolean {
+  return error instanceof WahaError && error.statusCode === 404;
+}
+
+function sessionStatus(info: WahaSessionInfo | null | undefined): string | null {
+  return typeof info?.status === 'string' ? info.status : null;
+}
+
 function mapConversationItem(item: ConversationListItem) {
   return {
     id: item.id,
@@ -127,7 +151,8 @@ function mapConversationItem(item: ConversationListItem) {
 
 export function createAdminRouter(deps: AdminRouterDeps): Router {
   const router = Router();
-  const { config, repos, health, conversations, worker } = deps;
+  const { config, repos, health, conversations, tattoo, notion, waha, worker } =
+    deps;
 
   router.get('/overview', async (_req, res) => {
     const [snapshot, stats] = await Promise.all([
@@ -156,12 +181,227 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
         queueMaxAttempts: config.queue.maxAttempts,
         sendSeen: config.waha.sendSeen,
         typingIndicator: config.waha.typingIndicator,
+        tattooArtist: tattoo.display,
+        tattooArtistSource: tattoo.source,
+        notionAgenda: notion.snapshot().databaseTitle,
+        notionAgendaReady: notion.snapshot().ready,
       },
       stats,
       health: snapshot,
       worker: worker?.snapshot() ?? null,
       dashboardUrl: health.dashboardUrl,
     });
+  });
+
+  /* ---------- WhatsApp / sesión de WAHA ---------- */
+
+  router.get('/whatsapp/status', async (_req, res) => {
+    const base = { dashboardUrl: health.dashboardUrl };
+
+    try {
+      const info = await waha.getSession();
+      const status = sessionStatus(info);
+      res.json({
+        ok: true,
+        exists: true,
+        status,
+        me: info.me ?? null,
+        qrAvailable: status === 'SCAN_QR_CODE',
+        ...base,
+      });
+    } catch (error) {
+      if (isSessionNotFound(error)) {
+        res.json({
+          ok: true,
+          exists: false,
+          status: null,
+          me: null,
+          qrAvailable: false,
+          ...base,
+        });
+        return;
+      }
+
+      res.json({
+        ok: false,
+        exists: false,
+        status: null,
+        me: null,
+        qrAvailable: false,
+        error: errorMessage(error),
+        ...base,
+      });
+    }
+  });
+
+  router.get('/whatsapp/qr', async (_req, res) => {
+    let info: WahaSessionInfo;
+    try {
+      info = await waha.getSession();
+    } catch (error) {
+      if (isSessionNotFound(error)) {
+        res.status(409).json({
+          error: {
+            code: 'SESSION_NOT_FOUND',
+            message:
+              'La sesión de WhatsApp no existe. Usá "Conectar WhatsApp" para crearla.',
+          },
+        });
+        return;
+      }
+      throw error;
+    }
+
+    const status = sessionStatus(info);
+    if (status !== 'SCAN_QR_CODE') {
+      res.status(409).json({
+        error: {
+          code: 'QR_NOT_AVAILABLE',
+          message: `La sesión está en estado ${status ?? 'desconocido'}. Generá un QR nuevo para escanear.`,
+          details: { status },
+        },
+      });
+      return;
+    }
+
+    try {
+      const qr = await waha.getQr();
+      res.json({
+        ok: true,
+        status,
+        mimetype: qr.mimetype,
+        dataUrl: `data:${qr.mimetype};base64,${qr.data}`,
+        fetchedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      // WAHA responde 422 mientras el QR todavía no está generado.
+      if (
+        error instanceof WahaError &&
+        (error.statusCode === 422 || error.statusCode === 404)
+      ) {
+        res.status(409).json({
+          error: {
+            code: 'QR_NOT_AVAILABLE',
+            message:
+              'WAHA todavía está generando el código QR. Esperá unos segundos y reintentá.',
+            details: { status },
+          },
+        });
+        return;
+      }
+      throw error;
+    }
+  });
+
+  router.post('/whatsapp/connect', async (_req, res) => {
+    const base = { dashboardUrl: health.dashboardUrl };
+    let info: WahaSessionInfo | null = null;
+    let action: 'created' | 'restarted' | 'none' = 'none';
+
+    try {
+      info = await waha.getSession();
+    } catch (error) {
+      if (!isSessionNotFound(error)) throw error;
+    }
+
+    if (!info) {
+      info = await waha.createSession();
+      action = 'created';
+    } else {
+      const status = sessionStatus(info);
+      if (status === 'FAILED' || status === 'STOPPED') {
+        info = await waha.restartSession();
+        action = 'restarted';
+      }
+    }
+
+    const status = sessionStatus(info);
+    res.json({
+      ok: true,
+      exists: true,
+      action,
+      status,
+      me: info.me ?? null,
+      qrAvailable: status === 'SCAN_QR_CODE',
+      ...base,
+    });
+  });
+
+  router.post('/whatsapp/restart', async (_req, res) => {
+    const base = { dashboardUrl: health.dashboardUrl };
+    let info: WahaSessionInfo | null = null;
+    let action: 'created' | 'restarted';
+
+    try {
+      info = await waha.getSession();
+    } catch (error) {
+      if (!isSessionNotFound(error)) throw error;
+    }
+
+    if (!info) {
+      info = await waha.createSession();
+      action = 'created';
+    } else {
+      info = await waha.restartSession();
+      action = 'restarted';
+    }
+
+    const status = sessionStatus(info);
+    res.json({
+      ok: true,
+      exists: true,
+      action,
+      status,
+      me: info.me ?? null,
+      qrAvailable: status === 'SCAN_QR_CODE',
+      ...base,
+    });
+  });
+
+  /* ---------- Tatuador / cotizaciones ---------- */
+
+  router.get('/tattoo', (_req, res) => {
+    res.json({ ok: true, ...tattoo.snapshot() });
+  });
+
+  router.put('/tattoo', (req, res) => {
+    const body = parseOrThrow(tattooPhoneSchema, req.body);
+    const settings = body.phone ? tattoo.save(body.phone) : tattoo.clear();
+    res.json({ ok: true, ...settings });
+  });
+
+  /* ---------- Agenda de Notion ---------- */
+
+  router.get('/notion', (_req, res) => {
+    res.json({ ok: true, ...notion.snapshot() });
+  });
+
+  router.put('/notion', async (req, res, next) => {
+    try {
+      const body = parseOrThrow(notionSettingsSchema, req.body);
+      const settings = await notion.save(body);
+      res.json({ ok: true, ...settings });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/notion/test', async (_req, res, next) => {
+    try {
+      const result = await notion.test();
+      res.json({ ok: result.ok, error: result.error, schema: result.schema });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/notion/discover', async (_req, res, next) => {
+    try {
+      const result = await notion.discover();
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      next(error);
+    }
   });
 
   router.get('/conversations', (req, res) => {
@@ -419,6 +659,10 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
         allowedChatsConfigured: config.bot.allowedChatIds.size,
         adminEnabled: config.admin.enabled,
         webhookHmacEnabled: Boolean(config.waha.hmacKey),
+        tattooArtist: tattoo.display,
+        tattooArtistSource: tattoo.source,
+        notionAgenda: notion.snapshot().databaseTitle,
+        notionAgendaReady: notion.snapshot().ready,
       },
     });
   });

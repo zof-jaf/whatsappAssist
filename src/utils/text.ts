@@ -18,6 +18,23 @@ export function phoneFromWaId(waId: string): string | null {
   return digits || null;
 }
 
+/**
+ * Extrae el teléfono de un JID de WhatsApp. WAHA usa `@c.us` para chats
+ * tradicionales y `@s.whatsapp.net` para el alias de teléfono de un `@lid`.
+ */
+export function phoneFromJid(value: string | null | undefined): string | null {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return null;
+
+  const lower = trimmed.toLowerCase();
+  if (!lower.endsWith('@c.us') && !lower.endsWith('@s.whatsapp.net')) {
+    return null;
+  }
+
+  const digits = trimmed.slice(0, trimmed.lastIndexOf('@')).replace(/\D/g, '');
+  return digits || null;
+}
+
 export function isGroupId(waId: string): boolean {
   return waId.endsWith('@g.us');
 }

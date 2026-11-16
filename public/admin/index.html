@@ -77,6 +77,9 @@
         <button class="tab active" type="button" data-tab="overview">
           Resumen
         </button>
+        <button class="tab" type="button" data-tab="whatsapp">
+          Conectar WhatsApp
+        </button>
         <button class="tab" type="button" data-tab="conversations">
           Conversaciones
         </button>
@@ -140,13 +143,20 @@
                 <h3>Accesos rápidos</h3>
               </div>
               <p class="muted">
-                Escaneá el código QR de WhatsApp en el panel de WAHA y revisá el
-                historial completo desde la pestaña Conversaciones.
+                Escaneá el código QR desde este panel para vincular WhatsApp y
+                revisá el historial completo desde la pestaña Conversaciones.
               </p>
               <div class="quick-actions">
+                <button
+                  id="go-whatsapp"
+                  class="button primary small"
+                  type="button"
+                >
+                  Conectar WhatsApp
+                </button>
                 <a
                   id="waha-link"
-                  class="button primary small"
+                  class="button ghost small"
                   href="#"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -166,6 +176,203 @@
               </div>
             </section>
           </div>
+        </section>
+
+        <section id="tab-whatsapp" class="tab-panel" hidden>
+          <div class="section-heading">
+            <div>
+              <h2>Conectar WhatsApp</h2>
+              <p class="muted">
+                Generá el código QR y escanealo desde tu teléfono para vincular
+                la sesión. No necesitás entrar al dashboard de WAHA.
+              </p>
+            </div>
+            <button
+              id="refresh-whatsapp"
+              class="button ghost small"
+              type="button"
+            >
+              Actualizar
+            </button>
+          </div>
+
+          <div class="whatsapp-layout">
+            <section class="card qr-card">
+              <div class="card-heading">
+                <h3>Estado de la sesión</h3>
+                <span id="whatsapp-status-chip" class="chip neutral">
+                  Comprobando…
+                </span>
+              </div>
+
+              <div
+                id="whatsapp-status"
+                class="whatsapp-status"
+                aria-live="polite"
+              >
+                <p class="muted">Consultando el estado de WAHA…</p>
+              </div>
+
+              <div id="whatsapp-qr-panel" class="qr-panel" hidden>
+                <div class="qr-frame">
+                  <img
+                    id="whatsapp-qr"
+                    alt="Código QR para vincular WhatsApp"
+                    width="280"
+                    height="280"
+                  />
+                </div>
+                <p class="muted small">
+                  El código rota automáticamente. Si vence, generá uno nuevo.
+                </p>
+              </div>
+
+              <div class="qr-actions">
+                <button
+                  id="whatsapp-connect"
+                  class="button primary"
+                  type="button"
+                >
+                  Generar QR / Conectar
+                </button>
+                <button
+                  id="whatsapp-restart"
+                  class="button ghost"
+                  type="button"
+                  hidden
+                >
+                  Reiniciar sesión
+                </button>
+                <a
+                  id="whatsapp-dashboard-link"
+                  class="button ghost"
+                  href="#"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Dashboard de WAHA
+                </a>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-heading">
+                <h3>Pasos para escanear</h3>
+              </div>
+              <ol class="steps">
+                <li>Abrí WhatsApp en tu teléfono.</li>
+                <li>
+                  Entrá a <strong>Dispositivos vinculados</strong> →
+                  <strong>Vincular un dispositivo</strong>.
+                </li>
+                <li>
+                  Apuntá la cámara al código QR que aparece a la izquierda.
+                </li>
+                <li>
+                  Cuando el estado cambie a <strong>Conectado</strong>, el bot
+                  ya puede recibir y responder mensajes.
+                </li>
+              </ol>
+              <p class="muted small qr-note">
+                El primer QR vence en ~60 segundos y los siguientes en ~20
+                segundos. Después de 6 códigos sin escanear, la sesión queda
+                fallida: usá “Generar QR / Conectar” para reiniciarla.
+              </p>
+              <dl id="whatsapp-info" class="info-list"></dl>
+            </section>
+          </div>
+
+          <section class="card tattoo-card">
+            <div class="card-heading">
+              <h3>Tatuador · Cotizaciones</h3>
+              <span id="tattoo-status-chip" class="chip neutral">
+                Sin configurar
+              </span>
+            </div>
+            <p class="muted">
+              Las consultas de precio se envían a este WhatsApp. Ingresá el
+              número colombiano sin código de país: el panel agrega +57
+              automáticamente.
+            </p>
+            <form id="tattoo-form" class="tattoo-form">
+              <label class="field tattoo-field">
+                <span>Número del tatuador</span>
+                <div class="phone-input">
+                  <span class="phone-prefix" aria-hidden="true">+57</span>
+                  <input
+                    id="tattoo-phone"
+                    type="tel"
+                    inputmode="numeric"
+                    placeholder="300 123 4567"
+                    autocomplete="off"
+                    maxlength="20"
+                    aria-describedby="tattoo-hint"
+                  />
+                </div>
+              </label>
+              <button id="tattoo-save" class="button primary" type="submit">
+                Guardar número
+              </button>
+              <button
+                id="tattoo-clear"
+                class="button ghost"
+                type="button"
+                hidden
+              >
+                Quitar
+              </button>
+            </form>
+            <p id="tattoo-hint" class="muted small tattoo-hint"></p>
+          </section>
+
+          <section class="card tattoo-card">
+            <div class="card-heading">
+              <h3>Agenda · Notion</h3>
+              <span id="notion-status-chip" class="chip neutral">
+                Sin configurar
+              </span>
+            </div>
+            <p class="muted">
+              Las citas confirmadas se crean automáticamente en tu base de
+              Notion. Compartí la base con la integración y pegá acá el token y
+              el enlace de la base.
+            </p>
+            <form id="notion-form" class="tattoo-form">
+              <label class="field tattoo-field">
+                <span>Token de la integración</span>
+                <input
+                  id="notion-token"
+                  type="password"
+                  placeholder="ntn_..."
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-describedby="notion-hint"
+                />
+              </label>
+              <label class="field tattoo-field">
+                <span>Base de agenda (ID o URL)</span>
+                <input
+                  id="notion-database"
+                  type="text"
+                  placeholder="https://www.notion.so/Agenda-..."
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-describedby="notion-hint"
+                />
+              </label>
+              <button id="notion-save" class="button primary" type="submit">
+                Guardar
+              </button>
+              <button id="notion-test" class="button ghost" type="button">
+                Probar conexión
+              </button>
+              <button id="notion-discover" class="button ghost" type="button">
+                Buscar bases
+              </button>
+            </form>
+            <p id="notion-hint" class="muted small tattoo-hint"></p>
+            <div id="notion-databases" class="notion-databases" hidden></div>
+          </section>
         </section>
 
         <section id="tab-conversations" class="tab-panel" hidden>

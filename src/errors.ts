@@ -54,6 +54,18 @@ export class OllamaError extends AppError {
   }
 }
 
+export class NotionError extends AppError {
+  constructor(message: string, statusCode = 502, details?: unknown) {
+    super(message, {
+      statusCode,
+      code: 'NOTION_ERROR',
+      details,
+      expose: false,
+    });
+    this.name = 'NotionError';
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = 'Recurso no encontrado') {
     super(message, { statusCode: 404, code: 'NOT_FOUND', expose: true });

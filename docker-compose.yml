@@ -35,7 +35,7 @@ services:
       # Sin esto, WAHA borra los archivos multimedia a los 180 segundos.
       WHATSAPP_FILES_FOLDER: /app/.media
       WHATSAPP_FILES_LIFETIME: "0"
-      TZ: ${TIMEZONE:-America/Argentina/Buenos_Aires}
+      TZ: ${TIMEZONE:-America/Bogota}
     volumes:
       - waha_sessions:/app/.sessions
       - waha_media:/app/.media
@@ -153,6 +153,9 @@ services:
     volumes:
       - bot_data:/app/data
       - bot_backups:/app/backups
+      # La guía se puede editar sin reconstruir la imagen; el bot la relee
+      # como máximo un minuto después del cambio.
+      - ./formato_respuestas.md:/app/formato_respuestas.md:ro
     stop_grace_period: 30s
     security_opt:
       - no-new-privileges:true

@@ -5,6 +5,9 @@ import type { WahaClient } from '../clients/waha.js';
 import type { OllamaClient } from '../clients/ollama.js';
 import type { Logger } from '../logger.js';
 import type { SummaryService } from './summary-service.js';
+import type { QuoteService } from './quote-service.js';
+import type { SchedulingService } from './scheduling-service.js';
+import type { ResponseGuideService } from './response-guide-service.js';
 import {
   isWahaWebhookEvent,
   parseMessageEvent,
@@ -45,6 +48,9 @@ export class ConversationService {
     private readonly waha: WahaClient,
     private readonly ollama: OllamaClient,
     private readonly summaries: SummaryService,
+    private readonly quotes: QuoteService,
+    private readonly scheduling: SchedulingService,
+    private readonly responseGuide: ResponseGuideService,
     private readonly logger: Logger,
   ) {}
 
@@ -139,6 +145,19 @@ export class ConversationService {
       return;
     }
 
+    // El chat del tatuador no recibe respuestas de IA: sus mensajes son
+    // respuestas de cotización que se reenvían al cliente correspondiente.
+    if (this.quotes.isArtistChat(message.chatId, message.phoneJid)) {
+      await this.quotes.handleArtistMessage({
+        message,
+        conversation,
+        contact,
+        inbound: inbound.message,
+        signal,
+      });
+      return;
+    }
+
     if (!conversation.ai_enabled) {
       this.repos.messages.markSkipped(inbound.message.id, 'ia_desactivada');
       this.logger.info(
@@ -191,6 +210,47 @@ export class ConversationService {
         conversation,
         inbound.message,
       );
+      return;
+    }
+
+    // Si el cliente pide precio, manda medidas o imágenes, la consulta se
+    // deriva al tatuador y no se llama al modelo.
+    const quoteOutcome = await this.quotes.handleClientMessage({
+      message,
+      conversation,
+      contact,
+      inbound: inbound.message,
+      signal,
+    });
+    if (quoteOutcome.handled) {
+      await this.deliverReply({
+        conversation,
+        contact,
+        inbound: inbound.message,
+        text: quoteOutcome.replyText,
+        kind: 'system',
+      });
+      await this.summaries.maybeSummarize(conversation.id, signal);
+      return;
+    }
+
+    // Si el cliente ya recibió el precio y elige día y hora, la cita se
+    // registra en Notion antes de confirmarla.
+    const schedulingOutcome = await this.scheduling.tryHandleClientMessage({
+      message,
+      conversation,
+      contact,
+      inbound: inbound.message,
+    });
+    if (schedulingOutcome.handled) {
+      await this.deliverReply({
+        conversation,
+        contact,
+        inbound: inbound.message,
+        text: schedulingOutcome.replyText,
+        kind: 'system',
+      });
+      await this.summaries.maybeSummarize(conversation.id, signal);
       return;
     }
 
@@ -426,10 +486,14 @@ export class ConversationService {
       500,
     );
 
+    const responseGuide = await this.responseGuide.get();
+    const quoteNote = this.quotes.promptNote(input.conversation.id);
+
     const prompt = buildPrompt(
       this.config,
       contextMessages,
       summary?.summary ?? null,
+      { responseGuide, quoteNote },
     );
 
     if (!prompt.messages.some((item) => item.role === 'user')) {
@@ -451,6 +515,21 @@ export class ConversationService {
       this.config.bot.maxReplyChars,
     );
     if (!reply) reply = this.config.bot.aiFallbackReply;
+
+    const safeReply = this.quotes.sanitizeReply(
+      reply,
+      input.conversation.id,
+    );
+    if (safeReply !== reply) {
+      this.logger.warn(
+        {
+          conversationId: input.conversation.id,
+          original: truncate(reply, 300),
+        },
+        'Respuesta de IA reemplazada por la red de seguridad de cotización',
+      );
+      reply = safeReply;
+    }
 
     await this.deliverReply({
       conversation: input.conversation,

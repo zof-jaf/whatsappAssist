@@ -36,6 +36,7 @@ COPY --from=builder /app/dist ./dist
 COPY package.json ./
 COPY public ./public
 COPY scripts ./scripts
+COPY formato_respuestas.md ./
 
 RUN mkdir -p /app/data /app/backups \
     && chown -R node:node /app

@@ -10,6 +10,12 @@ export type MessageStatus =
   | 'failed'
   | 'skipped';
 export type ConversationStatus = 'active' | 'archived';
+export type QuoteRequestStatus =
+  | 'pending'
+  | 'answered'
+  | 'delivered'
+  | 'cancelled'
+  | 'expired';
 export type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
 export type WebhookEventStatus = 'queued' | 'processed' | 'ignored' | 'duplicate' | 'error';
 
@@ -72,6 +78,31 @@ export interface ConversationSummaryRow {
   model: string | null;
   is_active: number;
   created_at: string;
+}
+
+export interface QuoteRequestRow {
+  id: number;
+  code: string | null;
+  conversation_id: number;
+  contact_id: number;
+  inbound_message_id: number | null;
+  request_body: string;
+  request_media_url: string | null;
+  request_media_mime: string | null;
+  request_media_filename: string | null;
+  status: QuoteRequestStatus;
+  artist_reply: string | null;
+  artist_inbound_message_id: number | null;
+  client_outbound_message_id: number | null;
+  artist_notification_message_id: string | null;
+  answered_at: string | null;
+  delivered_at: string | null;
+  appointment_at: string | null;
+  notion_page_id: string | null;
+  notion_page_url: string | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface InboundJobRow {

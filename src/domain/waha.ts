@@ -1,5 +1,10 @@
 import { toIsoFromUnix } from '../utils/time.js';
-import { isBroadcastId, isGroupId, phoneFromWaId } from '../utils/text.js';
+import {
+  isBroadcastId,
+  isGroupId,
+  phoneFromJid,
+  phoneFromWaId,
+} from '../utils/text.js';
 
 export interface WahaMedia {
   url?: string | null;
@@ -35,6 +40,11 @@ export interface WahaWebhookEvent {
 export interface NormalizedInboundMessage {
   waMessageId: string;
   chatId: string;
+  /**
+   * JID real del teléfono cuando WAHA usa direccionamiento `@lid`.
+   * Ejemplo: `573001234567@s.whatsapp.net`. Es `null` si WAHA no lo entrega.
+   */
+  phoneJid: string | null;
   fromMe: boolean;
   isGroup: boolean;
   isBroadcast: boolean;
@@ -101,6 +111,39 @@ function extractPushName(payload: WahaMessagePayload): string | null {
   return null;
 }
 
+/**
+ * WAHA entrega los chats con direccionamiento LID como `123@lid`, sin el
+ * teléfono. En `_data.key` adjunta el alias real (`remoteJidAlt`). Sin este
+ * alias el bot no puede reconocer al tatuador y lo trata como cliente.
+ */
+function extractPhoneJid(
+  payload: WahaMessagePayload,
+  chatId: string,
+): string | null {
+  const data = asRecord(payload._data);
+  const key = asRecord(data?.key);
+
+  const candidates = [
+    key?.remoteJidAlt,
+    key?.senderPn,
+    key?.participantAlt,
+    key?.participantPn,
+    data?.senderPn,
+    key?.remoteJid,
+    chatId,
+    payload.from,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || !candidate) continue;
+    if (/@(?:c\.us|s\.whatsapp\.net)$/i.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 export function parseMessageEvent(
   event: WahaWebhookEvent,
   fallbackNow: Date = new Date(),
@@ -129,14 +172,16 @@ export function parseMessageEvent(
 
   const timestampSource =
     payload.timestamp !== undefined ? payload.timestamp : event.timestamp;
+  const phoneJid = extractPhoneJid(payload, chatId);
 
   const message: NormalizedInboundMessage = {
     waMessageId,
     chatId,
+    phoneJid,
     fromMe,
     isGroup,
     isBroadcast,
-    phone: phoneFromWaId(chatId),
+    phone: phoneFromWaId(chatId) ?? phoneFromJid(phoneJid),
     pushName: extractPushName(payload),
     body,
     hasMedia,

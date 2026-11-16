@@ -3,6 +3,7 @@ import { ContactRepository } from './contacts.js';
 import { ConversationRepository } from './conversations.js';
 import { MessageRepository } from './messages.js';
 import { SummaryRepository } from './summaries.js';
+import { QuoteRequestRepository } from './quote-requests.js';
 import { JobRepository } from './jobs.js';
 import { WebhookEventRepository } from './events.js';
 import { MetaRepository } from './meta.js';
@@ -13,6 +14,7 @@ export interface Repositories {
   conversations: ConversationRepository;
   messages: MessageRepository;
   summaries: SummaryRepository;
+  quoteRequests: QuoteRequestRepository;
   jobs: JobRepository;
   events: WebhookEventRepository;
   meta: MetaRepository;
@@ -25,6 +27,7 @@ export function createRepositories(db: Db): Repositories {
     conversations: new ConversationRepository(db),
     messages: new MessageRepository(db),
     summaries: new SummaryRepository(db),
+    quoteRequests: new QuoteRequestRepository(db),
     jobs: new JobRepository(db),
     events: new WebhookEventRepository(db),
     meta: new MetaRepository(db),

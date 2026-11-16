@@ -21,6 +21,10 @@ export class MetaRepository {
       .run(key, value, nowIso());
   }
 
+  delete(key: string): void {
+    this.db.prepare('DELETE FROM app_meta WHERE key = ?').run(key);
+  }
+
   getJson<T>(key: string): T | undefined {
     const value = this.get(key);
     if (!value) return undefined;

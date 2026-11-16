@@ -19,7 +19,7 @@ describe('base de datos SQLite', () => {
   });
 
   it('aplica la migración inicial', () => {
-    expect(db.pragma('user_version', { simple: true })).toBe(1);
+    expect(db.pragma('user_version', { simple: true })).toBe(3);
     expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
 
     const tables = db
@@ -33,9 +33,21 @@ describe('base de datos SQLite', () => {
     expect(names).toContain('conversations');
     expect(names).toContain('messages');
     expect(names).toContain('conversation_summaries');
+    expect(names).toContain('quote_requests');
     expect(names).toContain('inbound_jobs');
     expect(names).toContain('webhook_events');
     expect(names).toContain('app_meta');
+
+    const quoteColumns = db
+      .prepare("PRAGMA table_info('quote_requests')")
+      .all() as Array<{ name: string }>;
+    expect(quoteColumns.map((column) => column.name)).toEqual(
+      expect.arrayContaining([
+        'appointment_at',
+        'notion_page_id',
+        'notion_page_url',
+      ]),
+    );
   });
 
   it('crea y actualiza contactos sin perder datos', () => {
@@ -324,7 +336,7 @@ describe('base de datos SQLite', () => {
 
     try {
       expect(diskDb.pragma('journal_mode', { simple: true })).toBe('wal');
-      expect(diskDb.pragma('user_version', { simple: true })).toBe(1);
+      expect(diskDb.pragma('user_version', { simple: true })).toBe(3);
     } finally {
       closeDatabase(diskDb);
       rmSync(directory, { recursive: true, force: true });

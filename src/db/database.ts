@@ -114,6 +114,39 @@ export const MIGRATIONS: readonly string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  CREATE TABLE quote_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE,
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    inbound_message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    request_body TEXT NOT NULL DEFAULT '',
+    request_media_url TEXT,
+    request_media_mime TEXT,
+    request_media_filename TEXT,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'answered', 'delivered', 'cancelled', 'expired')),
+    artist_reply TEXT,
+    artist_inbound_message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    client_outbound_message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    artist_notification_message_id TEXT,
+    answered_at TEXT,
+    delivered_at TEXT,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_quote_requests_conversation
+    ON quote_requests(conversation_id, id DESC);
+  CREATE INDEX idx_quote_requests_status
+    ON quote_requests(status, expires_at);
+  `,
+  `
+  ALTER TABLE quote_requests ADD COLUMN appointment_at TEXT;
+  ALTER TABLE quote_requests ADD COLUMN notion_page_id TEXT;
+  ALTER TABLE quote_requests ADD COLUMN notion_page_url TEXT;
+  `,
 ];
 
 export interface OpenDatabaseOptions {

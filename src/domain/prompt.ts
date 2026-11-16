@@ -14,6 +14,13 @@ export interface BuiltPrompt {
   truncated: boolean;
 }
 
+export interface PromptExtras {
+  /** Contenido de formato_respuestas.md, ya recortado. */
+  responseGuide?: string | null;
+  /** Estado de la consulta de cotización de esta conversación. */
+  quoteNote?: string | null;
+}
+
 function messageContent(message: MessageRow, maxChars: number): string {
   const body = message.body.trim();
   let content = body;
@@ -31,10 +38,19 @@ function messageContent(message: MessageRow, maxChars: number): string {
 export function buildSystemPrompt(
   config: AppConfig,
   summary?: string | null,
+  extras: PromptExtras = {},
 ): string {
   const now = formatDateTime(new Date(), config.bot.timeZone);
   const parts = [
     config.bot.systemPrompt,
+    '',
+    'Reglas del flujo de cotización:',
+    '- Solo atendés consultas de tatuajes o retoques. No preguntes por el significado, la historia ni el trasfondo emocional del diseño.',
+    '- Para cotizar pedí únicamente datos concretos: tamaño aproximado en cm, zona del cuerpo, imagen o referencia del diseño, color o negro, si es un retoque y disponibilidad.',
+    `- El precio y los tiempos los define ${config.tattoo.artistName}. Nunca inventes ni estimes un precio por tu cuenta.`,
+    '- Si el cliente pide un precio, el sistema deriva la consulta al tatuador automáticamente. Decile que ya la estás consultando y que le vas a responder cuando te confirme.',
+    '- Nunca respondas que no tenés información sobre costos ni mandes al cliente a buscar precios en internet o a consultar a otro profesional.',
+    '- Cuando el tatuador ya respondió, continuá con el agendamiento: día, horario y seña si corresponde. No vuelvas a cotizar.',
     '',
     `Contexto operativo:`,
     `- Tu nombre es ${config.bot.name}.`,
@@ -42,6 +58,22 @@ export function buildSystemPrompt(
     `- Canal: WhatsApp. Respondé en texto plano, sin tablas ni bloques de código extensos.`,
     `- No tenés acceso a internet ni a herramientas externas: no prometas acciones que no podés ejecutar.`,
   ];
+
+  if (extras.responseGuide?.trim()) {
+    parts.push(
+      '',
+      'Formato de respuestas obligatorio del estudio (seguilo siempre, incluso por encima de tu estilo habitual):',
+      extras.responseGuide.trim(),
+    );
+  }
+
+  if (extras.quoteNote?.trim()) {
+    parts.push(
+      '',
+      'Estado de la cotización de esta conversación:',
+      extras.quoteNote.trim(),
+    );
+  }
 
   if (summary && summary.trim()) {
     parts.push(
@@ -64,6 +96,7 @@ export function buildPrompt(
   config: AppConfig,
   allMessages: MessageRow[],
   summary?: string | null,
+  extras: PromptExtras = {},
 ): BuiltPrompt {
   const usable = allMessages
     .filter((message) => message.role === 'user' || message.role === 'assistant')
@@ -107,7 +140,7 @@ export function buildPrompt(
 
   return {
     messages: [
-      { role: 'system', content: buildSystemPrompt(config, summary) },
+      { role: 'system', content: buildSystemPrompt(config, summary, extras) },
       ...history,
     ],
     includedMessages: history.length,
