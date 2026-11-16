@@ -358,9 +358,10 @@ describe('flujo de cotización con el tatuador', () => {
     );
 
     const system = app.ollama.calls[0]?.[0]?.content ?? '';
-    expect(system).toContain('Formato de respuestas obligatorio del estudio');
-    expect(system).toContain('Regla de oro sobre los precios');
+    expect(system).toContain('Guía interna de referencia');
+    expect(system).toContain('[Regla de oro sobre los precios]');
     expect(system).toContain('COT-000001');
     expect(system).toContain('pendiente con el tatuador');
+    expect(system).not.toContain('# Formato de respuestas');
   });
 });

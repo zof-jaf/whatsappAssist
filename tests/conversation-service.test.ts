@@ -75,6 +75,44 @@ describe('ConversationService', () => {
     expect(app.ollama.calls[0]?.[0]?.role).toBe('system');
   });
 
+  it('quita el encabezado de la guía interna de una respuesta de IA', async () => {
+    const app = context();
+    app.ollama.defaultResponse = [
+      '# Formato de respuestas — Asistente de cotización de tatuajes',
+      '',
+      'Buenas noches. ¿En qué puedo ayudarte?',
+    ].join('\n');
+
+    await app.conversations.processJob(
+      queue(app, makeMessageEvent({ body: 'Buenas noches' })),
+    );
+
+    expect(app.waha.sent).toHaveLength(1);
+    expect(app.waha.sent[0]?.text).toBe(
+      'Buenas noches. ¿En qué puedo ayudarte?',
+    );
+  });
+
+  it('reemplaza una respuesta que era solo la guía interna', async () => {
+    const app = context();
+    app.ollama.defaultResponse = [
+      '# Formato de respuestas — Asistente de cotización de tatuajes',
+      '',
+      '## 1. Objetivo del asistente',
+      '',
+      '- Cotizar tatuajes y retoques.',
+    ].join('\n');
+
+    await app.conversations.processJob(
+      queue(app, makeMessageEvent({ body: 'Hola' })),
+    );
+
+    const sent = app.waha.sent[0]?.text ?? '';
+    expect(sent).toBe('¡Hola! ¿En qué puedo ayudarte?');
+    expect(sent).not.toContain('Formato de respuestas');
+    expect(sent).not.toContain('#');
+  });
+
   it('incluye los mensajes anteriores como contexto', async () => {
     const app = context();
     app.ollama.responses = ['Primera respuesta', 'Segunda respuesta'];

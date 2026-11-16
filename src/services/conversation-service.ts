@@ -16,6 +16,11 @@ import {
 } from '../domain/waha.js';
 import { buildPrompt } from '../domain/prompt.js';
 import {
+  hasMeaningfulText,
+  naturalReplyFallback,
+  stripGuideLeaks,
+} from '../domain/reply-sanitizer.js';
+import {
   helpText,
   matchCommand,
   resetText,
@@ -510,11 +515,24 @@ export class ConversationService {
       signal: input.signal,
     });
 
-    let reply = truncate(
-      sanitizeReply(result.content),
-      this.config.bot.maxReplyChars,
-    );
-    if (!reply) reply = this.config.bot.aiFallbackReply;
+    const rawReply = sanitizeReply(result.content);
+    const cleaned = stripGuideLeaks(rawReply);
+    let reply = truncate(cleaned.text, this.config.bot.maxReplyChars);
+
+    if (cleaned.leaked) {
+      this.logger.warn(
+        {
+          conversationId: input.conversation.id,
+          original: truncate(rawReply, 300),
+          cleaned: truncate(reply, 300),
+        },
+        'La respuesta de IA incluía la guía interna; se limpió antes de enviar',
+      );
+    }
+
+    if (!hasMeaningfulText(reply)) {
+      reply = naturalReplyFallback(input.message.body);
+    }
 
     const safeReply = this.quotes.sanitizeReply(
       reply,

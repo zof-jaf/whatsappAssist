@@ -5,6 +5,7 @@ import {
   buildPrompt,
   buildSummaryMessages,
   buildSystemPrompt,
+  prepareResponseGuide,
 } from '../src/domain/prompt.js';
 
 const config = loadConfig({
@@ -50,6 +51,42 @@ function message(
 }
 
 describe('construcción del prompt', () => {
+  it('marca la guía como material interno y no expone su encabezado', () => {
+    const guide = [
+      '# Formato de respuestas — Asistente de cotización de tatuajes',
+      '',
+      '## 5. Flujo de atención',
+      '',
+      'Respondé con calidez.',
+    ].join('\n');
+    const system = buildSystemPrompt(config, null, { responseGuide: guide });
+
+    expect(system).toContain('Guía interna de referencia');
+    expect(system).toContain('<guia_interna>');
+    expect(system).toContain('[Flujo de atención]');
+    expect(system).toContain('No copies ni cites');
+    expect(system).not.toContain('# Formato de respuestas');
+  });
+
+  it('quita el título del documento y los encabezados Markdown de la guía', () => {
+    const prepared = prepareResponseGuide(
+      [
+        '# Formato de respuestas — Asistente de cotización de tatuajes',
+        '',
+        'Este documento se lee antes de cada respuesta.',
+        'Su objetivo es que el asistente derive los precios.',
+        '',
+        '## 1. Objetivo del asistente',
+        '',
+        '- Cotizar tatuajes y retoques.',
+      ].join('\n'),
+    );
+
+    expect(prepared).toBe(
+      '[Objetivo del asistente]\n\n- Cotizar tatuajes y retoques.',
+    );
+  });
+
   it('incluye instrucciones, fecha y resumen', () => {
     const system = buildSystemPrompt(config, 'Al usuario le gusta el café.');
 

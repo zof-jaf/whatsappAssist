@@ -21,6 +21,49 @@ export interface PromptExtras {
   quoteNote?: string | null;
 }
 
+/**
+ * Prepara la guía para el prompt: quita el título del documento y convierte
+ * los encabezados Markdown en etiquetas entre corchetes. Así el modelo no ve
+ * el `#` que después tiende a copiar en la respuesta.
+ */
+export function prepareResponseGuide(raw: string): string {
+  const lines = raw.replace(/\r\n?/g, '\n').split('\n');
+  const result: string[] = [];
+  let skippingIntro = false;
+
+  for (const line of lines) {
+    // El párrafo inicial describe el documento, no la atención. Lo omitimos
+    // para que el modelo no lo repita como si fuera una respuesta.
+    if (!skippingIntro && /^este documento se lee/i.test(line.trim())) {
+      skippingIntro = true;
+      continue;
+    }
+    if (skippingIntro) {
+      if (!line.trim()) skippingIntro = false;
+      continue;
+    }
+
+    const heading = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (!heading) {
+      result.push(line);
+      continue;
+    }
+
+    const level = (heading[1] ?? '').length;
+    const title = (heading[2] ?? '').trim();
+    if (!title) continue;
+
+    // El título del documento es el que más se filtra; no lo pasamos.
+    if (level === 1 && /formato de respuestas|asistente de cotizaci[oó]n/i.test(title)) {
+      continue;
+    }
+
+    result.push(`[${title.replace(/^\d+(?:\.\d+)*[.)]?\s*/, '')}]`);
+  }
+
+  return result.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 function messageContent(message: MessageRow, maxChars: number): string {
   const body = message.body.trim();
   let content = body;
@@ -57,13 +100,21 @@ export function buildSystemPrompt(
     `- Fecha y hora actual: ${now} (${config.bot.timeZone}).`,
     `- Canal: WhatsApp. Respondé en texto plano, sin tablas ni bloques de código extensos.`,
     `- No tenés acceso a internet ni a herramientas externas: no prometas acciones que no podés ejecutar.`,
+    '- Escribí como una conversación natural de WhatsApp: sin títulos, sin numeración, sin viñetas y sin copiar fragmentos de la guía interna.',
   ];
 
   if (extras.responseGuide?.trim()) {
     parts.push(
       '',
-      'Formato de respuestas obligatorio del estudio (seguilo siempre, incluso por encima de tu estilo habitual):',
-      extras.responseGuide.trim(),
+      'Guía interna de referencia (no es un mensaje para el cliente):',
+      '- Usala solo para decidir cómo responder.',
+      '- No copies ni cites sus títulos, listas, ejemplos, viñetas ni instrucciones.',
+      '- Respondé siempre con tus propias palabras, como una charla natural.',
+      '<guia_interna>',
+      prepareResponseGuide(extras.responseGuide),
+      '</guia_interna>',
+      '',
+      'Recordá: la guía es material interno. Tu respuesta no debe contener títulos, numeración, viñetas ni fragmentos copiados de la guía.',
     );
   }
 
