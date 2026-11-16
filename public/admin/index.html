@@ -96,45 +96,45 @@
         </div>
 
         <nav class="side-nav" role="tablist" aria-label="Secciones del panel">
-          <p class="nav-group-label">Operación</p>
+          <p class="nav-group-label" role="presentation">Operación</p>
           <button id="nav-agenda" class="nav-item active" type="button" role="tab" data-tab="agenda" aria-controls="tab-agenda" aria-selected="true">
-            <svg class="icon"><use href="#i-calendar"/></svg>
+            <svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>
             <span>Agenda</span>
             <span class="nav-count" id="nav-count-agenda">06</span>
           </button>
           <button class="nav-item" type="button" role="tab" data-tab="agenda" data-agenda-filter="cotizacion" aria-controls="tab-agenda" aria-selected="false">
-            <svg class="icon"><use href="#i-ticket"/></svg>
+            <svg class="icon" aria-hidden="true"><use href="#i-ticket"/></svg>
             <span>Cotizaciones</span>
             <span class="nav-count" id="nav-count-quotes">12</span>
           </button>
           <button id="nav-conversations" class="nav-item" type="button" role="tab" data-tab="conversations" aria-controls="tab-conversations" aria-selected="false">
-            <svg class="icon"><use href="#i-chat"/></svg>
+            <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
             <span>Conversaciones</span>
           </button>
 
-          <p class="nav-group-label">Canal</p>
+          <p class="nav-group-label" role="presentation">Canal</p>
           <button id="nav-whatsapp" class="nav-item" type="button" role="tab" data-tab="whatsapp" aria-controls="tab-whatsapp" aria-selected="false">
-            <svg class="icon"><use href="#i-chat"/></svg>
+            <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
             <span>Flujo del Bot</span>
           </button>
 
-          <p class="nav-group-label">Estudio</p>
+          <p class="nav-group-label" role="presentation">Estudio</p>
           <button id="nav-artistas" class="nav-item" type="button" role="tab" data-tab="artistas" aria-controls="tab-artistas" aria-selected="false">
-            <svg class="icon"><use href="#i-users"/></svg>
+            <svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>
             <span>Artistas</span>
           </button>
           <button id="nav-flash" class="nav-item" type="button" role="tab" data-tab="flash" aria-controls="tab-flash" aria-selected="false">
-            <svg class="icon"><use href="#i-flash"/></svg>
+            <svg class="icon" aria-hidden="true"><use href="#i-flash"/></svg>
             <span>Catálogo Flash</span>
           </button>
 
-          <p class="nav-group-label">Sistema</p>
+          <p class="nav-group-label" role="presentation">Sistema</p>
           <button id="nav-overview" class="nav-item" type="button" role="tab" data-tab="overview" aria-controls="tab-overview" aria-selected="false">
-            <svg class="icon"><use href="#i-grid"/></svg>
+            <svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>
             <span>Resumen</span>
           </button>
           <button id="nav-system" class="nav-item" type="button" role="tab" data-tab="system" aria-controls="tab-system" aria-selected="false">
-            <svg class="icon"><use href="#i-sliders"/></svg>
+            <svg class="icon" aria-hidden="true"><use href="#i-sliders"/></svg>
             <span>Sistema</span>
           </button>
         </nav>
@@ -163,10 +163,10 @@
           </div>
           <div class="topbar-actions">
             <span id="model-chip" class="chip" title="Modelo de Ollama">—</span>
-            <span id="connection-chip" class="chip neutral">Comprobando…</span>
+            <span id="connection-chip" class="chip neutral" aria-live="polite">Comprobando…</span>
             <span class="topbar-divider" aria-hidden="true"></span>
             <button id="refresh-top" class="icon-button" type="button" title="Actualizar sección" aria-label="Actualizar sección">
-              <svg class="icon"><use href="#i-refresh"/></svg>
+              <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>
             </button>
             <button id="logout-button" class="button ghost small" type="button">Salir</button>
           </div>
@@ -183,10 +183,10 @@
               </div>
               <div class="page-actions">
                 <button id="agenda-export" class="button ghost small" type="button">
-                  <svg class="icon"><use href="#i-download"/></svg> Exportar
+                  <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg> Exportar
                 </button>
                 <button id="agenda-new" class="button primary small" type="button">
-                  <svg class="icon"><use href="#i-plus"/></svg> Nueva cita
+                  <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg> Nueva cita
                 </button>
               </div>
             </div>
@@ -207,8 +207,8 @@
                   <button class="seg" type="button" data-period="mes">Mes</button>
                 </div>
                 <label class="table-search">
-                  <svg class="icon"><use href="#i-search"/></svg>
-                  <input id="agenda-search" type="search" placeholder="Buscar por código, cliente o diseño…" autocomplete="off" />
+                  <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+                  <input id="agenda-search" name="agenda_search" type="search" aria-label="Buscar citas por código, cliente o diseño" placeholder="Buscar por código, cliente o diseño…" autocomplete="off" />
                   <kbd>/</kbd>
                 </label>
                 <label class="table-select">
@@ -279,7 +279,7 @@
                 <p class="muted page-sub">Estado del bot, dependencias y actividad reciente.</p>
               </div>
               <button id="refresh-overview" class="button ghost small" type="button">
-                <svg class="icon"><use href="#i-refresh"/></svg> Actualizar
+                <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Actualizar
               </button>
             </div>
             <div id="stats-grid" class="stats-grid" aria-live="polite">
@@ -314,13 +314,13 @@
                 <p class="muted page-sub">Vinculá la sesión y configurá a quién se derivan las cotizaciones y dónde se registran las citas.</p>
               </div>
               <button id="refresh-whatsapp" class="button ghost small" type="button">
-                <svg class="icon"><use href="#i-refresh"/></svg> Actualizar
+                <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Actualizar
               </button>
             </div>
 
             <div class="whatsapp-layout">
               <section class="card qr-card">
-                <div class="card-heading"><h3>Estado de la sesión</h3><span id="whatsapp-status-chip" class="chip neutral">Comprobando…</span></div>
+                <div class="card-heading"><h3>Estado de la sesión</h3><span id="whatsapp-status-chip" class="chip neutral" aria-live="polite">Comprobando…</span></div>
                 <div id="whatsapp-status" class="whatsapp-status" aria-live="polite"><p class="muted">Consultando el estado de WAHA…</p></div>
                 <div id="whatsapp-qr-panel" class="qr-panel" hidden>
                   <div class="qr-frame"><img id="whatsapp-qr" alt="Código QR para vincular WhatsApp" width="280" height="280" /></div>
@@ -352,40 +352,46 @@
               <form id="tattoo-form" class="tattoo-form">
                 <label class="field tattoo-field"><span>Número del tatuador</span>
                   <div class="phone-input"><span class="phone-prefix" aria-hidden="true">+57</span>
-                    <input id="tattoo-phone" type="tel" inputmode="numeric" placeholder="300 123 4567" autocomplete="off" maxlength="20" aria-describedby="tattoo-hint" />
+                    <input id="tattoo-phone" name="tattoo_phone" type="tel" inputmode="numeric" placeholder="300 123 4567…" autocomplete="off" maxlength="20" aria-describedby="tattoo-hint" />
                   </div>
                 </label>
                 <button id="tattoo-save" class="button primary" type="submit">Guardar número</button>
                 <button id="tattoo-clear" class="button ghost" type="button" hidden>Quitar</button>
               </form>
-              <p id="tattoo-hint" class="muted small tattoo-hint"></p>
+              <p id="tattoo-hint" class="muted small tattoo-hint" aria-live="polite"></p>
             </section>
 
             <section class="card tattoo-card">
               <div class="card-heading"><h3>Agenda · Notion</h3><span id="notion-status-chip" class="chip neutral">Sin configurar</span></div>
               <p class="muted">Las citas confirmadas se crean automáticamente en tu base de Notion. Compartí la base con la integración y pegá el token y el enlace.</p>
               <form id="notion-form" class="tattoo-form">
-                <label class="field tattoo-field"><span>Token de la integración</span><input id="notion-token" type="password" placeholder="ntn_…" autocomplete="off" spellcheck="false" aria-describedby="notion-hint" /></label>
-                <label class="field tattoo-field"><span>Base de agenda (ID o URL)</span><input id="notion-database" type="text" placeholder="https://www.notion.so/Agenda-…" autocomplete="off" spellcheck="false" aria-describedby="notion-hint" /></label>
+                <label class="field tattoo-field"><span>Token de la integración</span><input id="notion-token" name="notion_token" type="password" placeholder="ntn_…" autocomplete="off" spellcheck="false" aria-describedby="notion-hint" /></label>
+                <label class="field tattoo-field"><span>Base de agenda (ID o URL)</span><input id="notion-database" name="notion_database" type="text" placeholder="https://www.notion.so/Agenda-…" autocomplete="off" spellcheck="false" aria-describedby="notion-hint" /></label>
                 <button id="notion-save" class="button primary" type="submit">Guardar</button>
                 <button id="notion-test" class="button ghost" type="button">Probar conexión</button>
                 <button id="notion-discover" class="button ghost" type="button">Buscar bases</button>
               </form>
-              <p id="notion-hint" class="muted small tattoo-hint"></p>
+              <p id="notion-hint" class="muted small tattoo-hint" aria-live="polite"></p>
               <div id="notion-databases" class="notion-databases" hidden></div>
             </section>
           </section>
 
           <!-- ============ CONVERSACIONES ============ -->
-          <section id="tab-conversations" class="tab-panel" hidden>
+          <section
+            id="tab-conversations"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="nav-conversations"
+            hidden
+          >
             <div class="conversations-layout">
               <aside class="list-panel card">
                 <div class="list-heading">
                   <div><h2>Conversaciones</h2><p id="conversations-count" class="muted small">—</p></div>
-                  <button id="refresh-conversations" class="icon-button" type="button" title="Actualizar lista" aria-label="Actualizar lista"><svg class="icon"><use href="#i-refresh"/></svg></button>
+                  <button id="refresh-conversations" class="icon-button" type="button" title="Actualizar lista" aria-label="Actualizar lista"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg></button>
                 </div>
-                <label class="fieldcompact"><span class="sr-only">Buscar conversaciones</span><input id="conversation-search" type="search" placeholder="Buscar por nombre, teléfono o ID…" autocomplete="off" /></label>
-                <div class="list-filters"><label class="fieldcompact grow"><span class="sr-only">Filtrar por estado</span><select id="conversation-status"><option value="all">Todas</option><option value="active">Activas</option><option value="archived">Archivadas</option></select></label></div>
+                <label class="fieldcompact"><span class="sr-only">Buscar conversaciones</span><input id="conversation-search" name="conversation_search" type="search" placeholder="Buscar por nombre, teléfono o ID…" autocomplete="off" /></label>
+                <div class="list-filters"><label class="fieldcompact grow"><span class="sr-only">Filtrar por estado</span><select id="conversation-status" name="conversation_status"><option value="all">Todas</option><option value="active">Activas</option><option value="archived">Archivadas</option></select></label></div>
                 <div id="conversation-list" class="conversation-list"></div>
                 <div class="pagination">
                   <button id="conversations-prev" class="button ghost small" type="button" disabled>Anterior</button>
@@ -395,7 +401,7 @@
               </aside>
               <section id="conversation-detail" class="detail-panel card">
                 <div id="detail-empty" class="empty-state">
-                  <div class="empty-icon" aria-hidden="true"><svg class="icon"><use href="#i-chat"/></svg></div>
+                  <div class="empty-icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg></div>
                   <h3>Elegí una conversación</h3>
                   <p class="muted">Seleccioná un chat de la lista para ver el historial, el resumen de contexto y las acciones disponibles.</p>
                 </div>
@@ -408,7 +414,7 @@
                   </div>
                   <div id="message-list" class="message-list"></div>
                   <form id="manual-form" class="composer">
-                    <textarea id="manual-text" rows="2" maxlength="6000" placeholder="Escribir un mensaje manual como el bot…"></textarea>
+                    <textarea id="manual-text" name="manual_text" rows="2" maxlength="6000" aria-label="Mensaje manual como el bot" placeholder="Escribir un mensaje manual como el bot…"></textarea>
                     <button class="button primary" type="submit">Enviar</button>
                   </form>
                   <p class="composer-hint muted small">Enter envía · Shift + Enter agrega una línea nueva</p>
@@ -487,7 +493,7 @@
           <section id="tab-system" class="tab-panel" role="tabpanel" aria-labelledby="nav-system" hidden>
             <div class="page-head">
               <div><p class="eyebrow">Sistema · diagnóstico</p><h1>Sistema</h1><p class="muted page-sub">Salud de las dependencias, configuración y eventos recientes.</p></div>
-              <button id="refresh-system" class="button ghost small" type="button"><svg class="icon"><use href="#i-refresh"/></svg> Actualizar</button>
+              <button id="refresh-system" class="button ghost small" type="button"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Actualizar</button>
             </div>
             <div class="overview-grid">
               <section class="card"><div class="card-heading"><h3>Salud</h3></div><div id="system-health" class="health-grid"></div></section>
@@ -510,11 +516,11 @@
           <p class="eyebrow">Detalle de la cita</p>
           <h2 id="drawer-title">—</h2>
         </div>
-        <button id="drawer-close" class="icon-button" type="button" aria-label="Cerrar detalle"><svg class="icon"><use href="#i-x"/></svg></button>
+        <button id="drawer-close" class="icon-button" type="button" aria-label="Cerrar detalle"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
       </div>
       <div id="drawer-content" class="drawer-content"></div>
       <div class="drawer-actions">
-        <button id="drawer-confirm" class="button primary" type="button"><svg class="icon"><use href="#i-check"/></svg> Confirmar cita</button>
+        <button id="drawer-confirm" class="button primary" type="button"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> Confirmar cita</button>
         <button id="drawer-remind" class="button ghost" type="button">Enviar recordatorio</button>
         <button id="drawer-open-chat" class="button ghost" type="button">Ver conversación</button>
       </div>

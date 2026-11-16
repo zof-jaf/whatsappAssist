@@ -2158,7 +2158,7 @@ function appointmentRow(item) {
         </span>
       </td>
       <td><span class="table-status ${esc(item.status)}">${esc(AGENDA_STATUS_LABELS[item.status] ?? item.status)}</span></td>
-      <td><button class="row-more" type="button" aria-label="Ver detalle de ${esc(item.code)}"><svg class="icon"><use href="#i-more"/></svg></button></td>
+      <td><button class="row-more" type="button" aria-label="Ver detalle de ${esc(item.code)}"><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg></button></td>
     </tr>`;
 }
 
