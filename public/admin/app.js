@@ -64,6 +64,65 @@ const state = {
     checkedAt: null,
     loaded: false,
   },
+  agenda: {
+    search: '',
+    artist: 'all',
+    status: 'all',
+    period: 'semana',
+    selected: null,
+  },
+};
+
+/* ---------- Datos ilustrativos de agenda ----------
+   Las citas reales viven en Notion; el backend no expone aún un
+   endpoint de agenda. Esta vista muestra la estructura y el flujo. */
+function demoDate(offsetDays, time) {
+  const day = new Date();
+  day.setHours(0, 0, 0, 0);
+  day.setDate(day.getDate() + offsetDays);
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}T${time}:00`;
+}
+
+const APPOINTMENTS = [
+  { code: 'CIT-0482', client: 'Valentina Ríos', phone: '300 412 7789', design: 'Golondrinas', zone: 'Antebrazo', artist: 'Camila Serrano', at: demoDate(1, '15:00'), price: 480000, deposit: 150000, paid: true, status: 'confirmada', note: 'Ref: flash 04 · 3 sesiones' },
+  { code: 'COT-0391', client: 'Andrés F. Moreno', phone: '310 555 0142', design: 'Daga con rosas', zone: 'Pecho', artist: 'Diego Navarro', at: demoDate(2, '11:30'), price: 1250000, deposit: 400000, paid: false, status: 'pendiente', note: 'Cotización aprobada · espera depósito' },
+  { code: 'CIT-0480', client: 'Laura Martínez', phone: '320 887 3391', design: 'Mariposa dotwork', zone: 'Hombro', artist: 'Camila Serrano', at: demoDate(0, '10:00'), price: 320000, deposit: 100000, paid: true, status: 'completada', note: 'Sesión finalizada' },
+  { code: 'COT-0388', client: 'Sebastián Gil', phone: '301 224 8890', design: 'Máquina de bobinas', zone: 'Brazo', artist: 'Diego Navarro', at: demoDate(3, '16:00'), price: 690000, deposit: 200000, paid: false, status: 'cotizacion', note: 'Esperando respuesta del tatuador' },
+  { code: 'CIT-0479', client: 'M. Fernanda Ruiz', phone: '315 669 2204', design: 'Rosa neo-trad', zone: 'Muslo', artist: 'Lucía Ocampo', at: demoDate(-1, '17:30'), price: 540000, deposit: 170000, paid: true, status: 'completada', note: 'Sesión finalizada' },
+  { code: 'COT-0394', client: 'Paola A. Castaño', phone: '312 770 4481', design: 'Mano con daga', zone: 'Antebrazo', artist: 'Lucía Ocampo', at: demoDate(4, '14:00'), price: 870000, deposit: 250000, paid: false, status: 'cotizacion', note: 'Enviada hace 19 h · sin respuesta' },
+  { code: 'CIT-0483', client: 'Nicolás Heredia', phone: '318 340 9922', design: 'Sello marino', zone: 'Tobillo', artist: 'Lucía Ocampo', at: demoDate(5, '12:00'), price: 280000, deposit: 90000, paid: true, status: 'confirmada', note: 'Diseño flash 11' },
+  { code: 'COT-0396', client: 'Julián Castrillón', phone: '300 918 3375', design: 'Retoque de línea', zone: 'Hombro', artist: 'Camila Serrano', at: demoDate(5, '09:30'), price: 120000, deposit: 0, paid: false, status: 'cotizacion', note: 'Falta definir tamaño' },
+  { code: 'CIT-0478', client: 'Sara Benavides', phone: '321 556 1109', design: 'Calavera tradicional', zone: 'Pantorrilla', artist: 'Diego Navarro', at: demoDate(-2, '16:30'), price: 610000, deposit: 180000, paid: true, status: 'cancelada', note: 'Cancelada por el cliente' },
+];
+
+const CHAT_SCRIPT = [
+  { from: 'client', text: 'Buenas tardes, ¿cuánto sale un tatuaje de golondrinas en el antebrazo?', time: '14:02' },
+  { from: 'bot', text: '¡Hola! Para cotizarlo necesito el tamaño aproximado en cm y si querés color o solo negro.', time: '14:02' },
+  { from: 'client', text: 'Como 12 cm, en color.¿Tienen disponibilidad está semana?', time: '14:05' },
+  { from: 'bot', text: 'Perfecto. Derivo la consulta al tatuador con el código COT-0391. Te aviso en cuanto responda.', time: '14:05' },
+  { from: 'bot', text: 'Cotización recibida: $480.000. Para apartar el espacio necesitamos un depósito de $150.000.', time: '15:41' },
+];
+
+const FLASH_ITEMS = [
+  { code: 'FL-01', name: 'Golondrina', category: 'clasico', price: 180000, size: '8 × 5 cm', art: 'swallow' },
+  { code: 'FL-04', name: 'Rosa old school', category: 'floral', price: 220000, size: '10 × 8 cm', art: 'rose' },
+  { code: 'FL-07', name: 'Daga y serpiente', category: 'clasico', price: 260000, size: '14 × 6 cm', art: 'dagger' },
+  { code: 'FL-09', name: 'Ancla náutica', category: 'nautico', price: 190000, size: '9 × 9 cm', art: 'anchor' },
+  { code: 'FL-11', name: 'Mano y daga', category: 'clasico', price: 240000, size: '12 × 7 cm', art: 'hand' },
+  { code: 'FL-12', name: 'Mariposa dotwork', category: 'floral', price: 210000, size: '10 × 10 cm', art: 'butterfly' },
+  { code: 'FL-14', name: 'Brújula', category: 'nautico', price: 200000, size: '11 × 11 cm', art: 'compass' },
+  { code: 'FL-16', name: 'Corazón con banner', category: 'clasico', price: 170000, size: '8 × 7 cm', art: 'heart' },
+];
+
+const FLASH_ART = {
+  swallow: '<path d="M12 34c8-10 18-14 30-13-4 5-9 8-14 9 7-1 13 1 18 6-9-1-16 0-22 4 4 4 6 9 6 15-6-6-12-9-18-10-6 1-12 4-18 10 0-6 2-11 6-15-6-4-13-5-22-4 5-5 11-7 18-6-5-1-10-4-14-9 12-1 22 3 30 13z"/>',
+  rose: '<path d="M32 44c0-6 4-10 10-10 4 0 7 2 8 5 2-3 5-5 9-4 5 1 8 5 8 10 0 8-7 13-17 13S32 52 32 44z"/><path d="M41 39c3 4 8 5 12 3 5-2 8-1 11 2M43 47c5-3 9-3 14 0M50 52v14M50 58c-6-3-11-2-15 2M50 62c6-3 11-2 15 2"/>',
+  dagger: '<path d="M50 6 46 40h8L50 6zM46 40h8M50 40v22M45 64h10M50 62v6"/><path d="M44 44c-4 2-6 6-6 10M56 44c4 2 6 6 6 10"/>',
+  anchor: '<circle cx="50" cy="15" r="5"/><path d="M50 20v44M38 30h24M28 50c0 13 10 20 22 20s22-7 22-20M28 50l-5 5M72 50l5 5"/>',
+  hand: '<path d="M36 58V34c0-3 4-3 4 0v-4c0-3 4-3 4 0v-3c0-3 4-3 4 0v-2c0-3 4-3 4 0v3c0-3 4-3 4 0v5c0-3 4-3 4 0v24"/><path d="M36 58c0 8 6 12 14 12s14-4 14-12M50 6 46 16h8L50 6z"/>',
+  butterfly: '<path d="M50 36C42 22 24 20 22 34c-1 9 10 14 20 10M50 36c8-14 26-16 28-2 1 9-10 14-20 10M50 34v30M44 30l-6-8M56 30l6-8M47 48l-6 8M53 48l6 8"/>',
+  compass: '<circle cx="50" cy="40" r="24"/><circle cx="50" cy="40" r="19"/><path d="m50 22 5 14 14 4-14 4-5 14-5-14-14-4 14-4z"/><path d="M50 6v8M50 66v8M16 40h8M76 40h8"/>',
+  heart: '<path d="M50 62 28 42c-8-7-8-19 0-25 7-6 17-3 22 4 5-7 15-10 22-4 8 6 8 18 0 25L50 62z"/><path d="M32 44h36l-5 8H37z"/>',
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -81,13 +140,37 @@ const els = {
   modelChip: $('#model-chip'),
   connectionChip: $('#connection-chip'),
   logoutButton: $('#logout-button'),
-  tabs: Array.from(document.querySelectorAll('.tab')),
+  tabs: Array.from(document.querySelectorAll('.nav-item')),
   panels: {
+    agenda: $('#tab-agenda'),
     overview: $('#tab-overview'),
     conversations: $('#tab-conversations'),
     whatsapp: $('#tab-whatsapp'),
+    artistas: $('#tab-artistas'),
+    flash: $('#tab-flash'),
     system: $('#tab-system'),
   },
+  crumbCurrent: $('#crumb-current'),
+  liveDot: $('#live-dot'),
+  liveTitle: $('#live-title'),
+  liveSubtitle: $('#live-subtitle'),
+  sidebarModel: $('#sidebar-model'),
+  refreshTop: $('#refresh-top'),
+  agendaBody: $('#agenda-body'),
+  agendaSearch: $('#agenda-search'),
+  agendaArtist: $('#agenda-artist'),
+  agendaCount: $('#agenda-count'),
+  agendaFootCount: $('#agenda-foot-count'),
+  agendaPeriodLabel: $('#agenda-period-label'),
+  drawer: $('#appointment-drawer'),
+  drawerBackdrop: $('#drawer-backdrop'),
+  drawerContent: $('#drawer-content'),
+  drawerTitle: $('#drawer-title'),
+  drawerClose: $('#drawer-close'),
+  upcomingList: $('#upcoming-list'),
+  staleList: $('#stale-list'),
+  botActivity: $('#bot-activity'),
+  flashGrid: $('#flash-grid'),
   statsGrid: $('#stats-grid'),
   healthGrid: $('#health-grid'),
   botInfo: $('#bot-info'),
@@ -454,9 +537,13 @@ function showApp(overview) {
   state.whatsapp.autoConnectAt = 0;
   renderOverview(overview);
 
+  const model = overview?.bot?.model;
+  if (els.modelChip) els.modelChip.textContent = model || '—';
+  if (els.sidebarModel) els.sidebarModel.textContent = model || '—';
+
   // Si WhatsApp todavía no está conectado, mostramos primero el QR.
   const needsWhatsApp = overview?.health?.waha?.status !== 'WORKING';
-  activateTab(needsWhatsApp ? 'whatsapp' : 'overview');
+  activateTab(needsWhatsApp ? 'whatsapp' : 'agenda');
   if (needsWhatsApp) void loadWhatsApp();
   startAutoRefresh();
 }
@@ -468,14 +555,38 @@ function logout(message) {
 
 /* ---------- Navegación ---------- */
 
+const TAB_LABELS = {
+  agenda: 'Agenda',
+  overview: 'Resumen',
+  conversations: 'Conversaciones',
+  whatsapp: 'Flujo del Bot',
+  artistas: 'Artistas',
+  flash: 'Catálogo Flash',
+  system: 'Sistema',
+};
+
+function syncAgendaFilterChips() {
+  document.querySelectorAll('.filter-chip[data-status]').forEach((chip) => {
+    chip.classList.toggle('active', chip.dataset.status === state.agenda.status);
+  });
+}
+
 function activateTab(tab) {
   state.tab = tab;
   els.tabs.forEach((button) => {
-    button.classList.toggle('active', button.dataset.tab === tab);
+    const filter = button.dataset.agendaFilter;
+    const selected = button.dataset.tab === tab &&
+      (!filter || filter === state.agenda.status);
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-selected', String(selected));
+    button.tabIndex = selected ? 0 : -1;
   });
   Object.entries(els.panels).forEach(([name, panel]) => {
     panel.hidden = name !== tab;
   });
+
+  if (els.crumbCurrent) els.crumbCurrent.textContent = TAB_LABELS[tab] ?? tab;
+  closeDrawer();
 
   if (tab === 'whatsapp') {
     startWhatsAppPolling();
@@ -486,14 +597,24 @@ function activateTab(tab) {
   }
 }
 
-function switchTab(tab) {
+function switchTab(tab, options = {}) {
+  if (tab === 'agenda') {
+    state.agenda.status = options.agendaStatus || 'all';
+    syncAgendaFilterChips();
+  }
   activateTab(tab);
-  if (tab === 'overview') {
+  if (tab === 'agenda') {
+    renderAgenda();
+  } else if (tab === 'overview') {
     void loadOverview();
   } else if (tab === 'conversations') {
     void loadConversations();
   } else if (tab === 'whatsapp') {
     void loadWhatsApp();
+  } else if (tab === 'artistas') {
+    // Vista estática del directorio del estudio.
+  } else if (tab === 'flash') {
+    renderFlash();
   } else if (tab === 'system') {
     void loadSystem();
   }
@@ -600,6 +721,15 @@ function setConnectionChip(health) {
 
   els.connectionChip.className = `chip ${severity}`;
   els.connectionChip.textContent = label;
+
+  if (els.liveDot) {
+    const working = health.waha.ok && health.waha.status === 'WORKING';
+    els.liveDot.className = `live-dot ${working ? 'on' : 'off'}`;
+    els.liveTitle.textContent = working ? 'Bot conectado' : 'Bot desconectado';
+    els.liveSubtitle.textContent = working
+      ? `WhatsApp · ${health.waha.me?.pushName || 'sesión activa'}`
+      : `WAHA · ${health.waha.status ?? 'sin sesión'}`;
+  }
 }
 
 function renderHealth(container, health, worker) {
@@ -689,8 +819,8 @@ async function loadOverview(options = {}) {
 function renderOverview(data) {
   if (!data) return;
 
-  els.brandName.textContent = data.bot?.name || 'WhatsApp AI Bot';
-  els.brandSubtitle.textContent = `Panel de control · v${data.version ?? '—'}`;
+  els.brandName.textContent = 'Estudio de Tatuajes';
+  els.brandSubtitle.textContent = `${data.bot?.name || 'Asistente'} · v${data.version ?? '—'}`;
   els.modelChip.textContent = data.bot?.model || 'modelo desconocido';
   els.modelChip.title = `Modelo de Ollama: ${data.bot?.model ?? '—'}`;
   setConnectionChip(data.health);
@@ -1242,7 +1372,7 @@ function renderNotion() {
   els.notionStatusChip.textContent = chipText;
   els.notionToken.placeholder = notion.tokenSet
     ? 'Token guardado · dejalo vacío para conservarlo'
-    : 'ntn_...';
+    : 'ntn_…';
 
   const lines = [notionSourceLabel(notion.tokenSource)];
   if (notion.databaseTitle) {
@@ -1952,6 +2082,245 @@ async function retryJob(button) {
 
 /* ---------- Eventos de interfaz ---------- */
 
+/* ---------- Agenda: tabla, filtros y detalle ---------- */
+
+const AGENDA_STATUS_LABELS = {
+  confirmada: 'Confirmada',
+  pendiente: 'Depósito pend.',
+  cotizacion: 'Cotización',
+  completada: 'Completada',
+  cancelada: 'Cancelada',
+};
+
+function money(value) {
+  return `$${formatNumber(value)}`;
+}
+
+function appointmentDate(item) {
+  return new Date(item.at);
+}
+
+function filteredAppointments() {
+  const query = state.agenda.search.trim().toLowerCase();
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const start = new Date(now);
+  const end = new Date(now);
+
+  if (state.agenda.period === 'hoy') {
+    end.setDate(end.getDate() + 1);
+  } else if (state.agenda.period === 'semana') {
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    end.setDate(start.getDate() + 7);
+  } else if (state.agenda.period === 'mes') {
+    start.setDate(1);
+    end.setMonth(now.getMonth() + 1, 1);
+  }
+
+  return APPOINTMENTS.filter((item) => {
+    if (state.agenda.status !== 'all' && item.status !== state.agenda.status) return false;
+    if (state.agenda.artist !== 'all' && item.artist !== state.agenda.artist) return false;
+    if (query && !`${item.code} ${item.client} ${item.phone} ${item.design} ${item.zone}`.toLowerCase().includes(query)) return false;
+    if (state.agenda.period !== 'all') {
+      const date = appointmentDate(item);
+      if (date < start || date >= end) return false;
+    }
+    return true;
+  }).sort((a, b) => appointmentDate(a) - appointmentDate(b));
+}
+
+function appointmentRow(item) {
+  const date = appointmentDate(item);
+  const day = dateFormatter({ weekday: 'short', day: '2-digit', month: 'short' }).format(date);
+  const time = dateFormatter({ hour: '2-digit', minute: '2-digit' }).format(date);
+
+  return `
+    <tr data-code="${esc(item.code)}" class="${state.agenda.selected === item.code ? 'row-selected' : ''}">
+      <td><span class="cell-code">${esc(item.code)}</span></td>
+      <td>
+        <div class="cell-client">
+          <span class="mini-avatar">${esc(initials(item.client))}</span>
+          <div><strong>${esc(item.client)}</strong><small>${esc(item.phone)}</small></div>
+        </div>
+      </td>
+      <td><div class="cell-design"><span>${esc(item.design)}</span><small>${esc(item.zone)}</small></div></td>
+      <td>
+        <div class="cell-artist">
+          <span class="mini-avatar soft">${esc(initials(item.artist))}</span>
+          <strong>${esc(item.artist)}</strong>
+        </div>
+      </td>
+      <td><div class="cell-when">${esc(day)}<small>${esc(time)}</small></div></td>
+      <td class="num"><span class="cell-price">${money(item.price)}</span></td>
+      <td class="num">
+        <span class="deposit ${item.paid ? 'paid' : item.deposit ? 'due' : ''}">
+          <span class="dot"></span>${item.deposit ? money(item.deposit) : '—'}
+        </span>
+      </td>
+      <td><span class="table-status ${esc(item.status)}">${esc(AGENDA_STATUS_LABELS[item.status] ?? item.status)}</span></td>
+      <td><button class="row-more" type="button" aria-label="Ver detalle de ${esc(item.code)}"><svg class="icon"><use href="#i-more"/></svg></button></td>
+    </tr>`;
+}
+
+function periodLabel() {
+  const now = new Date();
+  if (state.agenda.period === 'hoy') {
+    return dateFormatter({ weekday: 'long', day: 'numeric', month: 'long' }).format(now);
+  }
+  if (state.agenda.period === 'mes') {
+    return dateFormatter({ month: 'long', year: 'numeric' }).format(now);
+  }
+  const start = new Date(now);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const from = dateFormatter({ day: 'numeric' }).format(start);
+  const to = dateFormatter({ day: 'numeric', month: 'short' }).format(end);
+  return `semana del ${from} al ${to}`;
+}
+
+function renderAgenda() {
+  if (!els.agendaBody) return;
+  const items = filteredAppointments();
+  els.agendaBody.innerHTML = items.length
+    ? items.map(appointmentRow).join('')
+    : '<tr><td colspan="9" class="table-empty">No hay citas que coincidan con los filtros.</td></tr>';
+  els.agendaCount.textContent = `${items.length} ${items.length === 1 ? 'registro' : 'registros'}`;
+  els.agendaFootCount.textContent = `mostrando ${items.length} de ${APPOINTMENTS.length}`;
+  if (els.agendaPeriodLabel) els.agendaPeriodLabel.textContent = periodLabel();
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const todayCount = APPOINTMENTS.filter((item) => {
+    const date = appointmentDate(item);
+    return date >= today && date < tomorrow && ['confirmada', 'pendiente'].includes(item.status);
+  }).length;
+  const quoteCount = APPOINTMENTS.filter((item) => item.status === 'cotizacion').length;
+  const countAgenda = document.getElementById('nav-count-agenda');
+  const countQuotes = document.getElementById('nav-count-quotes');
+  if (countAgenda) countAgenda.textContent = String(todayCount).padStart(2, '0');
+  if (countQuotes) countQuotes.textContent = String(quoteCount).padStart(2, '0');
+}
+
+function renderBento() {
+  const now = Date.now();
+  const horizon = now + 3 * 86_400_000;
+  const upcoming = APPOINTMENTS
+    .filter((item) => {
+      const date = appointmentDate(item).getTime();
+      return date >= now && date <= horizon && item.status !== 'cancelada';
+    })
+    .sort((a, b) => appointmentDate(a) - appointmentDate(b))
+    .slice(0, 3);
+
+  els.upcomingList.innerHTML = upcoming.length
+    ? upcoming.map((item) => {
+        const tone = item.status === 'pendiente' ? 'crimson' : 'gold';
+        const date = appointmentDate(item);
+        const when = dateFormatter({ weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date);
+        return `<div class="timeline-item">
+          <div class="timeline-rail"><span class="${tone}"></span></div>
+          <div class="timeline-body"><strong>${esc(item.client)}</strong><p>${esc(item.design)} · ${esc(item.artist)}</p><time>${esc(when)}</time></div>
+        </div>`;
+      }).join('')
+    : '<p class="muted small">Sin sesiones en las próximas 72 h.</p>';
+
+  const stale = APPOINTMENTS.filter((item) => item.status === 'cotizacion').slice(0, 3);
+  els.staleList.innerHTML = stale.length
+    ? stale.map((item) => `<div class="stale-item">
+        <div><strong>${esc(item.client)}</strong><small>${esc(item.code)} · ${esc(item.design)}</small></div>
+        <span class="wait">${esc(item.note.split('·')[0].trim())}</span>
+      </div>`).join('')
+    : '<div class="empty-mini">Sin cotizaciones abiertas.</div>';
+
+  els.botActivity.innerHTML = [
+    ['green', 'Mensaje respondido', 'Consulta de horario derivada al tatuador', 'hace 4 min'],
+    ['gold', 'Cotización creada', 'COT-0391 enviada al tatuador', 'hace 12 min'],
+    ['crimson', 'Depósito pendiente', 'Recordatorio automático programado', 'hace 38 min'],
+    ['gold', 'Cita confirmada', 'CIT-0482 sincronizada con Notion', 'hace 1 h'],
+  ].map(([tone, title, detail, at]) => `<div class="timeline-item">
+      <div class="timeline-rail"><span class="${tone}"></span></div>
+      <div class="timeline-body"><strong>${esc(title)}</strong><p>${esc(detail)}</p><time>${esc(at)}</time></div>
+    </div>`).join('');
+}
+
+function openAppointment(code) {
+  const item = APPOINTMENTS.find((entry) => entry.code === code);
+  if (!item) return;
+  state.agenda.selected = code;
+  const date = appointmentDate(item);
+  const when = dateFormatter({ weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(date);
+
+  els.drawerTitle.textContent = item.code;
+  els.drawerContent.innerHTML = `
+    <section class="drawer-section">
+      <h3>Cliente</h3>
+      <div class="drawer-client">
+        <span class="avatar-ring">${esc(initials(item.client))}</span>
+        <div><strong>${esc(item.client)}</strong><small>${esc(item.phone)} · WhatsApp</small></div>
+      </div>
+    </section>
+    <section class="drawer-section">
+      <h3>Detalle de la sesión</h3>
+      <dl class="drawer-facts">
+        <div><dt>Estado</dt><dd>${esc(AGENDA_STATUS_LABELS[item.status] ?? item.status)}</dd></div>
+        <div><dt>Fecha & hora</dt><dd>${esc(when)}</dd></div>
+        <div><dt>Diseño</dt><dd>${esc(item.design)}</dd></div>
+        <div><dt>Zona</dt><dd>${esc(item.zone)}</dd></div>
+        <div><dt>Artista</dt><dd>${esc(item.artist)}</dd></div>
+        <div><dt>Precio</dt><dd>${money(item.price)}</dd></div>
+        <div><dt>Depósito</dt><dd>${item.deposit ? money(item.deposit) : '—'}</dd></div>
+        <div><dt>Pago</dt><dd>${item.paid ? 'Recibido' : item.deposit ? 'Pendiente' : 'No requerido'}</dd></div>
+      </dl>
+      <p class="muted small" style="margin-top:10px">${esc(item.note)}</p>
+    </section>
+    <section class="drawer-section">
+      <h3>Conversación de WhatsApp</h3>
+      <div class="drawer-chat">
+        ${CHAT_SCRIPT.map((message) => `<div class="bubble ${message.from}">${esc(message.text)}<small>${esc(message.time)} · ${message.from === 'bot' ? 'Bot' : 'Cliente'}</small></div>`).join('')}
+      </div>
+    </section>`;
+
+  els.drawerBackdrop.hidden = false;
+  els.drawer.hidden = false;
+  document.body.style.overflow = 'hidden';
+  renderAgenda();
+  els.drawerClose.focus();
+}
+
+function closeDrawer() {
+  if (!els.drawer || els.drawer.hidden) return;
+  els.drawer.hidden = true;
+  els.drawerBackdrop.hidden = true;
+  document.body.style.overflow = '';
+  state.agenda.selected = null;
+  renderAgenda();
+}
+
+/* ---------- Catálogo flash ---------- */
+
+function renderFlash(filter = 'all') {
+  if (!els.flashGrid) return;
+  const items = filter === 'all'
+    ? FLASH_ITEMS
+    : FLASH_ITEMS.filter((item) => item.category === filter);
+
+  els.flashGrid.innerHTML = items.map((item) => `
+    <article class="card flash-card">
+      <div class="flash-art">
+        <span class="flash-code">${esc(item.code)}</span>
+        <svg viewBox="0 0 100 100" aria-hidden="true">${FLASH_ART[item.art] ?? ''}</svg>
+      </div>
+      <div class="flash-body">
+        <h3>${esc(item.name)}</h3>
+        <p>${esc(item.category)} · disponible para agendar</p>
+        <div class="flash-meta"><span class="price">${money(item.price)}</span><span class="size">${esc(item.size)}</span></div>
+      </div>
+    </article>`).join('');
+}
+
 function bindEvents() {
   els.loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -1986,8 +2355,104 @@ function bindEvents() {
     toast('Sesión cerrada');
   });
 
-  els.tabs.forEach((button) => {
-    button.addEventListener('click', () => switchTab(button.dataset.tab));
+  els.tabs.forEach((button, index) => {
+    button.addEventListener('click', () => {
+      const filter = button.dataset.agendaFilter;
+      switchTab(button.dataset.tab, filter ? { agendaStatus: filter } : {});
+    });
+    button.addEventListener('keydown', (event) => {
+      const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+      if (!keys.includes(event.key)) return;
+      event.preventDefault();
+      let next = index;
+      if (event.key === 'ArrowRight') next = (index + 1) % els.tabs.length;
+      if (event.key === 'ArrowLeft')
+        next = (index - 1 + els.tabs.length) % els.tabs.length;
+      if (event.key === 'Home') next = 0;
+      if (event.key === 'End') next = els.tabs.length - 1;
+      els.tabs[next].focus();
+      switchTab(els.tabs[next].dataset.tab);
+    });
+  });
+
+  els.refreshTop.addEventListener('click', () => {
+    switchTab(state.tab);
+    toast('Sección actualizada');
+  });
+
+  /* Agenda */
+  els.agendaSearch.addEventListener('input', () => {
+    state.agenda.search = els.agendaSearch.value.trim();
+    renderAgenda();
+  });
+  els.agendaArtist.addEventListener('change', () => {
+    state.agenda.artist = els.agendaArtist.value;
+    renderAgenda();
+  });
+  document.querySelectorAll('.seg').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.seg').forEach((other) => other.classList.toggle('active', other === button));
+      state.agenda.period = button.dataset.period;
+      renderAgenda();
+    });
+  });
+  document.querySelectorAll('.filter-chip[data-status]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.agenda.status = button.dataset.status;
+      syncAgendaFilterChips();
+      activateTab('agenda');
+      renderAgenda();
+    });
+  });
+  els.agendaBody.addEventListener('click', (event) => {
+    const row = event.target.closest('tr[data-code]');
+    if (row) openAppointment(row.dataset.code);
+  });
+  els.drawerClose.addEventListener('click', closeDrawer);
+  els.drawerBackdrop.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeDrawer();
+    if (event.key === '/' && state.tab === 'agenda' && state.inApp) {
+      const tag = document.activeElement?.tagName;
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+        event.preventDefault();
+        els.agendaSearch.focus();
+      }
+    }
+  });
+  document.getElementById('drawer-confirm').addEventListener('click', () => {
+    const item = APPOINTMENTS.find((entry) => entry.code === state.agenda.selected);
+    if (item) item.status = 'confirmada';
+    closeDrawer();
+    toast('Cita confirmada y sincronizada con Notion');
+  });
+  document.getElementById('drawer-remind').addEventListener('click', () => {
+    toast('Recordatorio enviado por WhatsApp');
+  });
+  document.getElementById('drawer-open-chat').addEventListener('click', () => {
+    closeDrawer();
+    switchTab('conversations');
+  });
+  document.getElementById('agenda-new').addEventListener('click', () => {
+    toast('La alta de citas se hace desde el flujo de WhatsApp', 'success');
+  });
+  document.getElementById('agenda-export').addEventListener('click', () => {
+    toast('Exportación disponible cuando se conecte la agenda de Notion');
+  });
+
+  /* Artistas y catálogo */
+  document.querySelectorAll('[data-artist-filter]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.agenda.artist = button.dataset.artistFilter;
+      els.agendaArtist.value = button.dataset.artistFilter;
+      switchTab('agenda');
+    });
+  });
+  document.querySelectorAll('.filter-chip[data-flash-filter]').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chip[data-flash-filter]').forEach((other) => other.classList.toggle('active', other === button));
+      renderFlash(button.dataset.flashFilter);
+    });
   });
 
   els.refreshOverview.addEventListener('click', () =>
@@ -2120,6 +2585,9 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
+  renderAgenda();
+  renderBento();
+  renderFlash();
 
   const storedToken = readStoredToken();
   if (!storedToken) {

@@ -4,20 +4,49 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <title>Panel · WhatsApp AI Bot</title>
+    <meta name="theme-color" content="#0d0d0d" />
+    <title>Agenda · Estudio de Tatuajes</title>
     <link rel="stylesheet" href="/admin/styles.css" />
+    <link rel="stylesheet" href="/admin/panel.css" />
   </head>
   <body>
+    <!--========== Sprite de iconos: líneas finas 1.5px (Lucide-like) ==========-->
+    <svg class="svg-sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+      <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3 9a2 2 0 0 0 0 6v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3a2 2 0 0 1 0-6V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/><path d="M13 5v2M13 11v2M13 17v2"/></symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-4.6A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 8.5-8.5h.5a8.5 8.5 0 0 1 8 8z"/><path d="M8.5 11.5h7M8.5 8.5h4"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="9" cy="7" r="3.5"/><path d="M22 20v-1.5a4 4 0 0 0-3-3.9M16.5 3.7a3.5 3.5 0 0 1 0 6.6"/></symbol>
+      <symbol id="i-flash" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 9-12h-7z"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></symbol>
+      <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 4h16l2 10v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-5z"/><path d="M2 14h5l2 3h6l2-3h5"/></symbol>
+    </svg>
+
+    <!--========== Login ==========-->
     <div id="login-view" class="login-view">
+      <div class="login-watermark" aria-hidden="true">
+        <svg viewBox="0 0 200 200"><use href="#i-flash"/></svg>
+      </div>
       <form id="login-form" class="login-card" autocomplete="on">
         <div class="login-logo" aria-hidden="true">
           <span class="logo-dot"></span>
           <span>WA</span>
         </div>
-        <h1>WhatsApp AI Bot</h1>
+        <p class="eyebrow">Panel privado · acceso restringido</p>
+        <h1>Estudio de Tatuajes</h1>
         <p class="muted">
-          Panel de administración. Ingresá el <code>ADMIN_TOKEN</code> definido
-          en tu archivo <code>.env</code>.
+          Agenda, cotizaciones y flujo de WhatsApp. Ingresá el
+          <code>ADMIN_TOKEN</code> definido en tu archivo <code>.env</code>.
         </p>
 
         <label class="field">
@@ -26,7 +55,7 @@
             id="login-token"
             type="password"
             name="token"
-            placeholder="Pegá el token aquí"
+            placeholder="Pegá el token aquí…"
             autocomplete="current-password"
             spellcheck="false"
             required
@@ -45,494 +74,453 @@
         <p id="login-error" class="form-error" role="alert" hidden></p>
 
         <p class="login-help">
-          El token se guarda solo en este navegador. Para cerrar la sesión usá
-          “Salir”.
+          Panel de WhatsApp AI Bot. El token se guarda solo en este navegador.
+          Para cerrar la sesión usá “Salir”.
         </p>
       </form>
     </div>
 
+    <!--========== Aplicación ==========-->
     <div id="app-view" class="app-view" hidden>
-      <header class="topbar">
-        <div class="brand">
+      <!-- Sidebar fija 240px · Diseño §6 -->
+      <aside class="sidebar">
+        <div class="sidebar-brand">
           <div class="brand-mark" aria-hidden="true">
             <span class="logo-dot"></span>
             <span>WA</span>
           </div>
           <div class="brand-text">
-            <strong id="brand-name">WhatsApp AI Bot</strong>
-            <span id="brand-subtitle" class="muted">Panel de control</span>
+            <strong id="brand-name">Estudio de Tatuajes</strong>
+            <span id="brand-subtitle" class="muted">Agenda & bot · Est. 2014</span>
           </div>
         </div>
 
-        <div class="topbar-actions">
-          <span id="model-chip" class="chip" title="Modelo de Ollama">—</span>
-          <span id="connection-chip" class="chip neutral">Comprobando…</span>
-          <button id="logout-button" class="button ghost small" type="button">
-            Salir
+        <nav class="side-nav" role="tablist" aria-label="Secciones del panel">
+          <p class="nav-group-label">Operación</p>
+          <button id="nav-agenda" class="nav-item active" type="button" role="tab" data-tab="agenda" aria-controls="tab-agenda" aria-selected="true">
+            <svg class="icon"><use href="#i-calendar"/></svg>
+            <span>Agenda</span>
+            <span class="nav-count" id="nav-count-agenda">06</span>
           </button>
+          <button class="nav-item" type="button" role="tab" data-tab="agenda" data-agenda-filter="cotizacion" aria-controls="tab-agenda" aria-selected="false">
+            <svg class="icon"><use href="#i-ticket"/></svg>
+            <span>Cotizaciones</span>
+            <span class="nav-count" id="nav-count-quotes">12</span>
+          </button>
+          <button id="nav-conversations" class="nav-item" type="button" role="tab" data-tab="conversations" aria-controls="tab-conversations" aria-selected="false">
+            <svg class="icon"><use href="#i-chat"/></svg>
+            <span>Conversaciones</span>
+          </button>
+
+          <p class="nav-group-label">Canal</p>
+          <button id="nav-whatsapp" class="nav-item" type="button" role="tab" data-tab="whatsapp" aria-controls="tab-whatsapp" aria-selected="false">
+            <svg class="icon"><use href="#i-chat"/></svg>
+            <span>Flujo del Bot</span>
+          </button>
+
+          <p class="nav-group-label">Estudio</p>
+          <button id="nav-artistas" class="nav-item" type="button" role="tab" data-tab="artistas" aria-controls="tab-artistas" aria-selected="false">
+            <svg class="icon"><use href="#i-users"/></svg>
+            <span>Artistas</span>
+          </button>
+          <button id="nav-flash" class="nav-item" type="button" role="tab" data-tab="flash" aria-controls="tab-flash" aria-selected="false">
+            <svg class="icon"><use href="#i-flash"/></svg>
+            <span>Catálogo Flash</span>
+          </button>
+
+          <p class="nav-group-label">Sistema</p>
+          <button id="nav-overview" class="nav-item" type="button" role="tab" data-tab="overview" aria-controls="tab-overview" aria-selected="false">
+            <svg class="icon"><use href="#i-grid"/></svg>
+            <span>Resumen</span>
+          </button>
+          <button id="nav-system" class="nav-item" type="button" role="tab" data-tab="system" aria-controls="tab-system" aria-selected="false">
+            <svg class="icon"><use href="#i-sliders"/></svg>
+            <span>Sistema</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-foot">
+          <div class="bot-live">
+            <span class="live-dot" id="live-dot"></span>
+            <div class="live-copy">
+              <strong id="live-title">Bot conectado</strong>
+              <span id="live-subtitle">Verificando WhatsApp…</span>
+            </div>
+          </div>
+          <div class="sidebar-meta">
+            <span id="sidebar-model">—</span>
+            <span>v1.0.0</span>
+          </div>
         </div>
-      </header>
+      </aside>
 
-      <nav class="tabs" aria-label="Secciones">
-        <button class="tab active" type="button" data-tab="overview">
-          Resumen
-        </button>
-        <button class="tab" type="button" data-tab="whatsapp">
-          Conectar WhatsApp
-        </button>
-        <button class="tab" type="button" data-tab="conversations">
-          Conversaciones
-        </button>
-        <button class="tab" type="button" data-tab="system">
-          Sistema
-        </button>
-      </nav>
-
-      <main class="main">
-        <section id="tab-overview" class="tab-panel">
-          <div class="section-heading">
-            <div>
-              <h2>Resumen general</h2>
-              <p class="muted">
-                Estado del bot, dependencias y actividad reciente.
-              </p>
-            </div>
-            <button
-              id="refresh-overview"
-              class="button ghost small"
-              type="button"
-            >
-              Actualizar
+      <div class="workspace">
+        <header class="topbar">
+          <div class="topbar-left">
+            <span class="crumb-root">Estudio</span>
+            <span class="crumb-sep">/</span>
+            <span id="crumb-current" class="crumb-current">Agenda</span>
+          </div>
+          <div class="topbar-actions">
+            <span id="model-chip" class="chip" title="Modelo de Ollama">—</span>
+            <span id="connection-chip" class="chip neutral">Comprobando…</span>
+            <span class="topbar-divider" aria-hidden="true"></span>
+            <button id="refresh-top" class="icon-button" type="button" title="Actualizar sección" aria-label="Actualizar sección">
+              <svg class="icon"><use href="#i-refresh"/></svg>
             </button>
+            <button id="logout-button" class="button ghost small" type="button">Salir</button>
           </div>
+        </header>
 
-          <div id="stats-grid" class="stats-grid" aria-live="polite">
-            <div class="stat-card skeleton"></div>
-            <div class="stat-card skeleton"></div>
-            <div class="stat-card skeleton"></div>
-            <div class="stat-card skeleton"></div>
-          </div>
-
-          <div class="overview-grid">
-            <section class="card">
-              <div class="card-heading">
-                <h3>Dependencias</h3>
-                <span class="muted small">Se actualiza cada 20 s</span>
+        <main class="main">
+          <!-- ============ AGENDA ============ -->
+          <section id="tab-agenda" class="tab-panel" role="tabpanel" aria-labelledby="nav-agenda">
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Agenda · <span id="agenda-period-label">semana del 24 al 30 de nov</span></p>
+                <h1>Citas & cotizaciones</h1>
+                <p class="muted page-sub">Flujo completo de WhatsApp a la aguja. Confirmá depósitos, coordiná sesiones y seguí cada consulta.</p>
               </div>
-              <div id="health-grid" class="health-grid"></div>
-            </section>
-
-            <section class="card">
-              <div class="card-heading">
-                <h3>Configuración efectiva</h3>
-              </div>
-              <dl id="bot-info" class="info-list"></dl>
-            </section>
-          </div>
-
-          <div class="overview-grid">
-            <section class="card">
-              <div class="card-heading">
-                <h3>Cola de mensajes</h3>
-              </div>
-              <div id="queue-info" class="queue-grid"></div>
-            </section>
-
-            <section class="card accent-card">
-              <div class="card-heading">
-                <h3>Accesos rápidos</h3>
-              </div>
-              <p class="muted">
-                Escaneá el código QR desde este panel para vincular WhatsApp y
-                revisá el historial completo desde la pestaña Conversaciones.
-              </p>
-              <div class="quick-actions">
-                <button
-                  id="go-whatsapp"
-                  class="button primary small"
-                  type="button"
-                >
-                  Conectar WhatsApp
+              <div class="page-actions">
+                <button id="agenda-export" class="button ghost small" type="button">
+                  <svg class="icon"><use href="#i-download"/></svg> Exportar
                 </button>
-                <a
-                  id="waha-link"
-                  class="button ghost small"
-                  href="#"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Abrir panel de WAHA
-                </a>
-                <button
-                  id="go-conversations"
-                  class="button ghost small"
-                  type="button"
-                >
-                  Ver conversaciones
-                </button>
-                <button id="go-system" class="button ghost small" type="button">
-                  Estado del sistema
+                <button id="agenda-new" class="button primary small" type="button">
+                  <svg class="icon"><use href="#i-plus"/></svg> Nueva cita
                 </button>
               </div>
-            </section>
-          </div>
-        </section>
-
-        <section id="tab-whatsapp" class="tab-panel" hidden>
-          <div class="section-heading">
-            <div>
-              <h2>Conectar WhatsApp</h2>
-              <p class="muted">
-                Generá el código QR y escanealo desde tu teléfono para vincular
-                la sesión. No necesitás entrar al dashboard de WAHA.
-              </p>
             </div>
-            <button
-              id="refresh-whatsapp"
-              class="button ghost small"
-              type="button"
-            >
-              Actualizar
-            </button>
-          </div>
 
-          <div class="whatsapp-layout">
-            <section class="card qr-card">
-              <div class="card-heading">
-                <h3>Estado de la sesión</h3>
-                <span id="whatsapp-status-chip" class="chip neutral">
-                  Comprobando…
-                </span>
-              </div>
-
-              <div
-                id="whatsapp-status"
-                class="whatsapp-status"
-                aria-live="polite"
-              >
-                <p class="muted">Consultando el estado de WAHA…</p>
-              </div>
-
-              <div id="whatsapp-qr-panel" class="qr-panel" hidden>
-                <div class="qr-frame">
-                  <img
-                    id="whatsapp-qr"
-                    alt="Código QR para vincular WhatsApp"
-                    width="280"
-                    height="280"
-                  />
-                </div>
-                <p class="muted small">
-                  El código rota automáticamente. Si vence, generá uno nuevo.
-                </p>
-              </div>
-
-              <div class="qr-actions">
-                <button
-                  id="whatsapp-connect"
-                  class="button primary"
-                  type="button"
-                >
-                  Generar QR / Conectar
-                </button>
-                <button
-                  id="whatsapp-restart"
-                  class="button ghost"
-                  type="button"
-                  hidden
-                >
-                  Reiniciar sesión
-                </button>
-                <a
-                  id="whatsapp-dashboard-link"
-                  class="button ghost"
-                  href="#"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Dashboard de WAHA
-                </a>
-              </div>
-            </section>
-
-            <section class="card">
-              <div class="card-heading">
-                <h3>Pasos para escanear</h3>
-              </div>
-              <ol class="steps">
-                <li>Abrí WhatsApp en tu teléfono.</li>
-                <li>
-                  Entrá a <strong>Dispositivos vinculados</strong> →
-                  <strong>Vincular un dispositivo</strong>.
-                </li>
-                <li>
-                  Apuntá la cámara al código QR que aparece a la izquierda.
-                </li>
-                <li>
-                  Cuando el estado cambie a <strong>Conectado</strong>, el bot
-                  ya puede recibir y responder mensajes.
-                </li>
-              </ol>
-              <p class="muted small qr-note">
-                El primer QR vence en ~60 segundos y los siguientes en ~20
-                segundos. Después de 6 códigos sin escanear, la sesión queda
-                fallida: usá “Generar QR / Conectar” para reiniciarla.
-              </p>
-              <dl id="whatsapp-info" class="info-list"></dl>
-            </section>
-          </div>
-
-          <section class="card tattoo-card">
-            <div class="card-heading">
-              <h3>Tatuador · Cotizaciones</h3>
-              <span id="tattoo-status-chip" class="chip neutral">
-                Sin configurar
-              </span>
+            <div class="kpi-strip" aria-label="Indicadores de la agenda">
+              <div class="kpi"><span class="kpi-label">Citas la semana</span><strong class="kpi-value">18</strong><span class="kpi-delta">+3 vs. anterior</span></div>
+              <div class="kpi"><span class="kpi-label">Por confirmar</span><strong class="kpi-value accent-gold">06</strong><span class="kpi-delta">2 con depósito</span></div>
+              <div class="kpi"><span class="kpi-label">Cotizaciones abiertas</span><strong class="kpi-value">12</strong><span class="kpi-delta">4 sin respuesta</span></div>
+              <div class="kpi"><span class="kpi-label">Depósitos cobrados</span><strong class="kpi-value">$1.240.000</strong><span class="kpi-delta">noviembre</span></div>
+              <div class="kpi"><span class="kpi-label">Ocupación</span><strong class="kpi-value">74%</strong><span class="kpi-delta">capacidad weekly</span></div>
             </div>
-            <p class="muted">
-              Las consultas de precio se envían a este WhatsApp. Ingresá el
-              número colombiano sin código de país: el panel agrega +57
-              automáticamente.
-            </p>
-            <form id="tattoo-form" class="tattoo-form">
-              <label class="field tattoo-field">
-                <span>Número del tatuador</span>
-                <div class="phone-input">
-                  <span class="phone-prefix" aria-hidden="true">+57</span>
-                  <input
-                    id="tattoo-phone"
-                    type="tel"
-                    inputmode="numeric"
-                    placeholder="300 123 4567"
-                    autocomplete="off"
-                    maxlength="20"
-                    aria-describedby="tattoo-hint"
-                  />
+
+            <section class="card table-card">
+              <div class="table-toolbar">
+                <div class="segmented" role="group" aria-label="Periodo">
+                  <button class="seg active" type="button" data-period="semana">Semana</button>
+                  <button class="seg" type="button" data-period="hoy">Hoy</button>
+                  <button class="seg" type="button" data-period="mes">Mes</button>
                 </div>
-              </label>
-              <button id="tattoo-save" class="button primary" type="submit">
-                Guardar número
-              </button>
-              <button
-                id="tattoo-clear"
-                class="button ghost"
-                type="button"
-                hidden
-              >
-                Quitar
-              </button>
-            </form>
-            <p id="tattoo-hint" class="muted small tattoo-hint"></p>
-          </section>
-
-          <section class="card tattoo-card">
-            <div class="card-heading">
-              <h3>Agenda · Notion</h3>
-              <span id="notion-status-chip" class="chip neutral">
-                Sin configurar
-              </span>
-            </div>
-            <p class="muted">
-              Las citas confirmadas se crean automáticamente en tu base de
-              Notion. Compartí la base con la integración y pegá acá el token y
-              el enlace de la base.
-            </p>
-            <form id="notion-form" class="tattoo-form">
-              <label class="field tattoo-field">
-                <span>Token de la integración</span>
-                <input
-                  id="notion-token"
-                  type="password"
-                  placeholder="ntn_..."
-                  autocomplete="off"
-                  spellcheck="false"
-                  aria-describedby="notion-hint"
-                />
-              </label>
-              <label class="field tattoo-field">
-                <span>Base de agenda (ID o URL)</span>
-                <input
-                  id="notion-database"
-                  type="text"
-                  placeholder="https://www.notion.so/Agenda-..."
-                  autocomplete="off"
-                  spellcheck="false"
-                  aria-describedby="notion-hint"
-                />
-              </label>
-              <button id="notion-save" class="button primary" type="submit">
-                Guardar
-              </button>
-              <button id="notion-test" class="button ghost" type="button">
-                Probar conexión
-              </button>
-              <button id="notion-discover" class="button ghost" type="button">
-                Buscar bases
-              </button>
-            </form>
-            <p id="notion-hint" class="muted small tattoo-hint"></p>
-            <div id="notion-databases" class="notion-databases" hidden></div>
-          </section>
-        </section>
-
-        <section id="tab-conversations" class="tab-panel" hidden>
-          <div class="conversations-layout">
-            <aside class="list-panel card">
-              <div class="list-heading">
-                <div>
-                  <h2>Conversaciones</h2>
-                  <p id="conversations-count" class="muted small">—</p>
-                </div>
-                <button
-                  id="refresh-conversations"
-                  class="icon-button"
-                  type="button"
-                  title="Actualizar lista"
-                  aria-label="Actualizar lista"
-                >
-                  ↻
-                </button>
-              </div>
-
-              <label class="fieldcompact">
-                <span class="sr-only">Buscar conversaciones</span>
-                <input
-                  id="conversation-search"
-                  type="search"
-                  placeholder="Buscar por nombre, teléfono o ID…"
-                  autocomplete="off"
-                />
-              </label>
-
-              <div class="list-filters">
-                <label class="fieldcompact grow">
-                  <span class="sr-only">Filtrar por estado</span>
-                  <select id="conversation-status">
-                    <option value="all">Todas</option>
-                    <option value="active">Activas</option>
-                    <option value="archived">Archivadas</option>
+                <label class="table-search">
+                  <svg class="icon"><use href="#i-search"/></svg>
+                  <input id="agenda-search" type="search" placeholder="Buscar por código, cliente o diseño…" autocomplete="off" />
+                  <kbd>/</kbd>
+                </label>
+                <label class="table-select">
+                  <span class="sr-only">Filtrar por artista</span>
+                  <select id="agenda-artist">
+                    <option value="all">Todos los artistas</option>
+                    <option value="Camila Serrano">Camila Serrano</option>
+                    <option value="Diego Navarro">Diego Navarro</option>
+                    <option value="Lucía Ocampo">Lucía Ocampo</option>
                   </select>
                 </label>
-              </div>
-
-              <div id="conversation-list" class="conversation-list"></div>
-
-              <div class="pagination">
-                <button
-                  id="conversations-prev"
-                  class="button ghost small"
-                  type="button"
-                  disabled
-                >
-                  Anterior
-                </button>
-                <span id="conversations-page" class="muted small">—</span>
-                <button
-                  id="conversations-next"
-                  class="button ghost small"
-                  type="button"
-                  disabled
-                >
-                  Siguiente
-                </button>
-              </div>
-            </aside>
-
-            <section id="conversation-detail" class="detail-panel card">
-              <div id="detail-empty" class="empty-state">
-                <div class="empty-icon" aria-hidden="true">💬</div>
-                <h3>Elegí una conversación</h3>
-                <p class="muted">
-                  Seleccioná un chat de la lista para ver el historial completo,
-                  el resumen de contexto y las acciones disponibles.
-                </p>
-              </div>
-              <div id="detail-content" class="detail-content" hidden>
-                <header id="detail-header" class="detail-header"></header>
-                <div id="detail-summary"></div>
-                <div class="messages-toolbar">
-                  <button
-                    id="load-older"
-                    class="button ghost small"
-                    type="button"
-                    hidden
-                  >
-                    Cargar mensajes anteriores
-                  </button>
-                  <span id="detail-context" class="muted small"></span>
+                <div class="status-filters" role="group" aria-label="Filtrar por estado">
+                  <button class="filter-chip active" type="button" data-status="all">Todas</button>
+                  <button class="filter-chip" type="button" data-status="confirmada">Confirmadas</button>
+                  <button class="filter-chip" type="button" data-status="pendiente">Pendientes</button>
+                  <button class="filter-chip" type="button" data-status="cotizacion">Cotizaciones</button>
+                  <button class="filter-chip" type="button" data-status="completada">Completadas</button>
                 </div>
-                <div id="message-list" class="message-list"></div>
-                <form id="manual-form" class="composer">
-                  <textarea
-                    id="manual-text"
-                    rows="2"
-                    maxlength="6000"
-                    placeholder="Escribir un mensaje manual como el bot…"
-                  ></textarea>
-                  <button class="button primary" type="submit">
-                    Enviar
-                  </button>
-                </form>
-                <p class="composer-hint muted small">
-                  Enter envía · Shift + Enter agrega una línea nueva
-                </p>
+                <span id="agenda-count" class="table-count">9 registros</span>
+              </div>
+
+              <div class="table-scroll">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th class="col-code">Código</th>
+                      <th>Cliente</th>
+                      <th>Diseño / zona</th>
+                      <th>Artista</th>
+                      <th class="col-when">Fecha & hora</th>
+                      <th class="num">Precio</th>
+                      <th class="num">Depósito</th>
+                      <th>Estado</th>
+                      <th class="col-more"><span class="sr-only">Acciones</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="agenda-body"></tbody>
+                </table>
+              </div>
+              <div class="table-foot">
+                <span class="muted small">Los datos de agenda se sincronizan desde Notion. Esta vista es ilustrativa.</span>
+                <span id="agenda-foot-count" class="muted small mono">—</span>
               </div>
             </section>
-          </div>
-        </section>
 
-        <section id="tab-system" class="tab-panel" hidden>
-          <div class="section-heading">
-            <div>
-              <h2>Sistema</h2>
-              <p class="muted">
-                Salud de las dependencias, configuración y eventos recientes.
-              </p>
+            <div class="bento-row">
+              <section class="card mini-panel">
+                <div class="card-heading"><h3>Próximas sesiones</h3><span class="muted small">72 h</span></div>
+                <div id="upcoming-list" class="timeline"></div>
+              </section>
+              <section class="card mini-panel">
+                <div class="card-heading"><h3>Cotizaciones sin respuesta</h3><span class="chip warn" id="stale-count">04</span></div>
+                <div id="stale-list" class="stack-list"></div>
+              </section>
+              <section class="card mini-panel">
+                <div class="card-heading"><h3>Actividad del bot</h3><span class="muted small">en vivo</span></div>
+                <div id="bot-activity" class="timeline"></div>
+              </section>
             </div>
-            <button id="refresh-system" class="button ghost small" type="button">
-              Actualizar
-            </button>
-          </div>
+          </section>
 
-          <div class="overview-grid">
-            <section class="card">
-              <div class="card-heading">
-                <h3>Salud</h3>
+          <!-- ============ RESUMEN ============ -->
+          <section id="tab-overview" class="tab-panel" role="tabpanel" aria-labelledby="nav-overview" hidden>
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Sistema · resumen general</p>
+                <h1>Resumen general</h1>
+                <p class="muted page-sub">Estado del bot, dependencias y actividad reciente.</p>
               </div>
-              <div id="system-health" class="health-grid"></div>
+              <button id="refresh-overview" class="button ghost small" type="button">
+                <svg class="icon"><use href="#i-refresh"/></svg> Actualizar
+              </button>
+            </div>
+            <div id="stats-grid" class="stats-grid" aria-live="polite">
+              <div class="stat-card skeleton"></div><div class="stat-card skeleton"></div>
+              <div class="stat-card skeleton"></div><div class="stat-card skeleton"></div>
+            </div>
+            <div class="overview-grid">
+              <section class="card"><div class="card-heading"><h3>Dependencias</h3><span class="muted small">Se actualiza cada 20 s</span></div><div id="health-grid" class="health-grid"></div></section>
+              <section class="card"><div class="card-heading"><h3>Configuración efectiva</h3></div><dl id="bot-info" class="info-list"></dl></section>
+            </div>
+            <div class="overview-grid">
+              <section class="card"><div class="card-heading"><h3>Cola de mensajes</h3></div><div id="queue-info" class="queue-grid"></div></section>
+              <section class="card accent-card">
+                <div class="card-heading"><h3>Accesos rápidos</h3></div>
+                <p class="muted">Escaneá el QR para vincular WhatsApp y revisá el historial completo desde Conversaciones.</p>
+                <div class="quick-actions">
+                  <button id="go-whatsapp" class="button primary small" type="button">Conectar WhatsApp</button>
+                  <a id="waha-link" class="button ghost small" href="#" target="_blank" rel="noopener noreferrer">Panel de WAHA</a>
+                  <button id="go-conversations" class="button ghost small" type="button">Ver conversaciones</button>
+                  <button id="go-system" class="button ghost small" type="button">Estado del sistema</button>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <!-- ============ FLUJO DEL BOT / WHATSAPP ============ -->
+          <section id="tab-whatsapp" class="tab-panel" role="tabpanel" aria-labelledby="nav-whatsapp" hidden>
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Canal · WhatsApp Business</p>
+                <h1>Flujo del Bot</h1>
+                <p class="muted page-sub">Vinculá la sesión y configurá a quién se derivan las cotizaciones y dónde se registran las citas.</p>
+              </div>
+              <button id="refresh-whatsapp" class="button ghost small" type="button">
+                <svg class="icon"><use href="#i-refresh"/></svg> Actualizar
+              </button>
+            </div>
+
+            <div class="whatsapp-layout">
+              <section class="card qr-card">
+                <div class="card-heading"><h3>Estado de la sesión</h3><span id="whatsapp-status-chip" class="chip neutral">Comprobando…</span></div>
+                <div id="whatsapp-status" class="whatsapp-status" aria-live="polite"><p class="muted">Consultando el estado de WAHA…</p></div>
+                <div id="whatsapp-qr-panel" class="qr-panel" hidden>
+                  <div class="qr-frame"><img id="whatsapp-qr" alt="Código QR para vincular WhatsApp" width="280" height="280" /></div>
+                  <p class="muted small">El código rota automáticamente. Si vence, generá uno nuevo.</p>
+                </div>
+                <div class="qr-actions">
+                  <button id="whatsapp-connect" class="button primary" type="button">Generar QR / Conectar</button>
+                  <button id="whatsapp-restart" class="button ghost" type="button" hidden>Reiniciar sesión</button>
+                  <a id="whatsapp-dashboard-link" class="button ghost" href="#" target="_blank" rel="noopener noreferrer">Dashboard de WAHA</a>
+                </div>
+              </section>
+
+              <section class="card">
+                <div class="card-heading"><h3>Pasos para escanear</h3></div>
+                <ol class="steps">
+                  <li>Abrí WhatsApp en tu teléfono.</li>
+                  <li>Entrá a <strong>Dispositivos vinculados</strong> → <strong>Vincular un dispositivo</strong>.</li>
+                  <li>Apuntá la cámara al código QR que aparece a la izquierda.</li>
+                  <li>Cuando el estado cambie a <strong>Conectado</strong>, el bot ya puede responder.</li>
+                </ol>
+                <p class="muted small qr-note">El primer QR vence en ~60 s y los siguientes en ~20 s. Después de 6 códigos sin escanear, usá “Generar QR / Conectar”.</p>
+                <dl id="whatsapp-info" class="info-list"></dl>
+              </section>
+            </div>
+
+            <section class="card tattoo-card">
+              <div class="card-heading"><h3>Tatuador · Cotizaciones</h3><span id="tattoo-status-chip" class="chip neutral">Sin configurar</span></div>
+              <p class="muted">Las consultas de precio se envían a este WhatsApp. Ingresá el número colombiano sin código de país: el panel agrega +57 automáticamente.</p>
+              <form id="tattoo-form" class="tattoo-form">
+                <label class="field tattoo-field"><span>Número del tatuador</span>
+                  <div class="phone-input"><span class="phone-prefix" aria-hidden="true">+57</span>
+                    <input id="tattoo-phone" type="tel" inputmode="numeric" placeholder="300 123 4567" autocomplete="off" maxlength="20" aria-describedby="tattoo-hint" />
+                  </div>
+                </label>
+                <button id="tattoo-save" class="button primary" type="submit">Guardar número</button>
+                <button id="tattoo-clear" class="button ghost" type="button" hidden>Quitar</button>
+              </form>
+              <p id="tattoo-hint" class="muted small tattoo-hint"></p>
             </section>
 
-            <section class="card">
-              <div class="card-heading">
-                <h3>Configuración</h3>
-              </div>
-              <dl id="system-settings" class="info-list"></dl>
+            <section class="card tattoo-card">
+              <div class="card-heading"><h3>Agenda · Notion</h3><span id="notion-status-chip" class="chip neutral">Sin configurar</span></div>
+              <p class="muted">Las citas confirmadas se crean automáticamente en tu base de Notion. Compartí la base con la integración y pegá el token y el enlace.</p>
+              <form id="notion-form" class="tattoo-form">
+                <label class="field tattoo-field"><span>Token de la integración</span><input id="notion-token" type="password" placeholder="ntn_…" autocomplete="off" spellcheck="false" aria-describedby="notion-hint" /></label>
+                <label class="field tattoo-field"><span>Base de agenda (ID o URL)</span><input id="notion-database" type="text" placeholder="https://www.notion.so/Agenda-…" autocomplete="off" spellcheck="false" aria-describedby="notion-hint" /></label>
+                <button id="notion-save" class="button primary" type="submit">Guardar</button>
+                <button id="notion-test" class="button ghost" type="button">Probar conexión</button>
+                <button id="notion-discover" class="button ghost" type="button">Buscar bases</button>
+              </form>
+              <p id="notion-hint" class="muted small tattoo-hint"></p>
+              <div id="notion-databases" class="notion-databases" hidden></div>
             </section>
-          </div>
+          </section>
 
-          <div class="overview-grid">
-            <section class="card">
-              <div class="card-heading">
-                <h3>Trabajos fallidos</h3>
-                <span id="failed-jobs-count" class="chip neutral">0</span>
-              </div>
-              <div id="failed-jobs" class="stack-list"></div>
-            </section>
+          <!-- ============ CONVERSACIONES ============ -->
+          <section id="tab-conversations" class="tab-panel" hidden>
+            <div class="conversations-layout">
+              <aside class="list-panel card">
+                <div class="list-heading">
+                  <div><h2>Conversaciones</h2><p id="conversations-count" class="muted small">—</p></div>
+                  <button id="refresh-conversations" class="icon-button" type="button" title="Actualizar lista" aria-label="Actualizar lista"><svg class="icon"><use href="#i-refresh"/></svg></button>
+                </div>
+                <label class="fieldcompact"><span class="sr-only">Buscar conversaciones</span><input id="conversation-search" type="search" placeholder="Buscar por nombre, teléfono o ID…" autocomplete="off" /></label>
+                <div class="list-filters"><label class="fieldcompact grow"><span class="sr-only">Filtrar por estado</span><select id="conversation-status"><option value="all">Todas</option><option value="active">Activas</option><option value="archived">Archivadas</option></select></label></div>
+                <div id="conversation-list" class="conversation-list"></div>
+                <div class="pagination">
+                  <button id="conversations-prev" class="button ghost small" type="button" disabled>Anterior</button>
+                  <span id="conversations-page" class="muted small">—</span>
+                  <button id="conversations-next" class="button ghost small" type="button" disabled>Siguiente</button>
+                </div>
+              </aside>
+              <section id="conversation-detail" class="detail-panel card">
+                <div id="detail-empty" class="empty-state">
+                  <div class="empty-icon" aria-hidden="true"><svg class="icon"><use href="#i-chat"/></svg></div>
+                  <h3>Elegí una conversación</h3>
+                  <p class="muted">Seleccioná un chat de la lista para ver el historial, el resumen de contexto y las acciones disponibles.</p>
+                </div>
+                <div id="detail-content" class="detail-content" hidden>
+                  <header id="detail-header" class="detail-header"></header>
+                  <div id="detail-summary"></div>
+                  <div class="messages-toolbar">
+                    <button id="load-older" class="button ghost small" type="button" hidden>Cargar mensajes anteriores</button>
+                    <span id="detail-context" class="muted small"></span>
+                  </div>
+                  <div id="message-list" class="message-list"></div>
+                  <form id="manual-form" class="composer">
+                    <textarea id="manual-text" rows="2" maxlength="6000" placeholder="Escribir un mensaje manual como el bot…"></textarea>
+                    <button class="button primary" type="submit">Enviar</button>
+                  </form>
+                  <p class="composer-hint muted small">Enter envía · Shift + Enter agrega una línea nueva</p>
+                </div>
+              </section>
+            </div>
+          </section>
 
-            <section class="card">
-              <div class="card-heading">
-                <h3>Eventos recientes</h3>
-                <span class="muted small">Últimos 50 webhooks</span>
+          <!-- ============ ARTISTAS ============ -->
+          <section id="tab-artistas" class="tab-panel" role="tabpanel" aria-labelledby="nav-artistas" hidden>
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Estudio · equipo</p>
+                <h1>Artistas</h1>
+                <p class="muted page-sub">Carga, especialidad y disponibilidad de cada tatuador del estudio.</p>
               </div>
-              <div id="recent-events" class="stack-list scrollable"></div>
-            </section>
-          </div>
-        </section>
-      </main>
+              <span class="demo-chip" title="Directorio ilustrativo">DIRECTORIO DEMO</span>
+            </div>
+            <div class="artist-grid">
+              <article class="card artist-card">
+                <div class="artist-portrait"><span class="avatar-ring">CS</span></div>
+                <div class="artist-body">
+                  <h3>Camila Serrano</h3>
+                  <p class="artist-role">Neo-traditional · color</p>
+                  <div class="tag-row"><span class="tag tag-gold">Flash</span><span class="tag">Flores</span><span class="tag">Retratos</span></div>
+                  <dl class="artist-stats"><div><dt>Sesiones · mes</dt><dd class="mono">24</dd></div><div><dt>Tarifa / hora</dt><dd class="mono">$180.000</dd></div><div><dt>Valoración</dt><dd class="mono">4.9</dd></div></dl>
+                  <div class="artist-foot"><span class="chip ok">Disponible</span><button class="button ghost small" type="button" data-artist-filter="Camila Serrano">Ver agenda</button></div>
+                </div>
+              </article>
+              <article class="card artist-card">
+                <div class="artist-portrait"><span class="avatar-ring">DN</span></div>
+                <div class="artist-body">
+                  <h3>Diego Navarro</h3>
+                  <p class="artist-role">Blackwork · dotwork</p>
+                  <div class="tag-row"><span class="tag tag-gold">Grandes piezas</span><span class="tag">Geometría</span><span class="tag">Dagas</span></div>
+                  <dl class="artist-stats"><div><dt>Sesiones · mes</dt><dd class="mono">18</dd></div><div><dt>Tarifa / hora</dt><dd class="mono">$210.000</dd></div><div><dt>Valoración</dt><dd class="mono">4.8</dd></div></dl>
+                  <div class="artist-foot"><span class="chip warn">Agenda ajustada</span><button class="button ghost small" type="button" data-artist-filter="Diego Navarro">Ver agenda</button></div>
+                </div>
+              </article>
+              <article class="card artist-card">
+                <div class="artist-portrait"><span class="avatar-ring">LO</span></div>
+                <div class="artist-body">
+                  <h3>Lucía Ocampo</h3>
+                  <p class="artist-role">Old school · flash</p>
+                  <div class="tag-row"><span class="tag tag-gold">Golondrinas</span><span class="tag">Rosas</span><span class="tag">Náutico</span></div>
+                  <dl class="artist-stats"><div><dt>Sesiones · mes</dt><dd class="mono">21</dd></div><div><dt>Tarifa / hora</dt><dd class="mono">$165.000</dd></div><div><dt>Valoración</dt><dd class="mono">5.0</dd></div></dl>
+                  <div class="artist-foot"><span class="chip ok">Disponible</span><button class="button ghost small" type="button" data-artist-filter="Lucía Ocampo">Ver agenda</button></div>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <!-- ============ CATÁLOGO FLASH ============ -->
+          <section id="tab-flash" class="tab-panel" role="tabpanel" aria-labelledby="nav-flash" hidden>
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Estudio · catálogo</p>
+                <h1>Catálogo Flash</h1>
+                <p class="muted page-sub">Diseños listos para agendar. Grabados en tinta, precios fijos y tiempos estimados.</p>
+              </div>
+              <span class="demo-chip" title="Catálogo ilustrativo">CATÁLOGO DEMO</span>
+            </div>
+            <div class="flash-toolbar">
+              <div class="status-filters" role="group" aria-label="Filtrar catálogo">
+                <button class="filter-chip active" type="button" data-flash-filter="all">Todos</button>
+                <button class="filter-chip" type="button" data-flash-filter="clasico">Clásico</button>
+                <button class="filter-chip" type="button" data-flash-filter="nautico">Náutico</button>
+                <button class="filter-chip" type="button" data-flash-filter="floral">Floral</button>
+              </div>
+              <span class="muted small mono">12 diseños disponibles</span>
+            </div>
+            <div id="flash-grid" class="flash-grid"></div>
+          </section>
+
+          <!-- ============ SISTEMA ============ -->
+          <section id="tab-system" class="tab-panel" role="tabpanel" aria-labelledby="nav-system" hidden>
+            <div class="page-head">
+              <div><p class="eyebrow">Sistema · diagnóstico</p><h1>Sistema</h1><p class="muted page-sub">Salud de las dependencias, configuración y eventos recientes.</p></div>
+              <button id="refresh-system" class="button ghost small" type="button"><svg class="icon"><use href="#i-refresh"/></svg> Actualizar</button>
+            </div>
+            <div class="overview-grid">
+              <section class="card"><div class="card-heading"><h3>Salud</h3></div><div id="system-health" class="health-grid"></div></section>
+              <section class="card"><div class="card-heading"><h3>Configuración</h3></div><dl id="system-settings" class="info-list"></dl></section>
+            </div>
+            <div class="overview-grid">
+              <section class="card"><div class="card-heading"><h3>Trabajos fallidos</h3><span id="failed-jobs-count" class="chip neutral">0</span></div><div id="failed-jobs" class="stack-list"></div></section>
+              <section class="card"><div class="card-heading"><h3>Eventos recientes</h3><span class="muted small">Últimos 50 webhooks</span></div><div id="recent-events" class="stack-list scrollable"></div></section>
+            </div>
+          </section>
+        </main>
+      </div>
     </div>
 
-    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+    <!--========== Drawer de detalle de cita ==========-->
+    <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+    <aside id="appointment-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+      <div class="drawer-head">
+        <div>
+          <p class="eyebrow">Detalle de la cita</p>
+          <h2 id="drawer-title">—</h2>
+        </div>
+        <button id="drawer-close" class="icon-button" type="button" aria-label="Cerrar detalle"><svg class="icon"><use href="#i-x"/></svg></button>
+      </div>
+      <div id="drawer-content" class="drawer-content"></div>
+      <div class="drawer-actions">
+        <button id="drawer-confirm" class="button primary" type="button"><svg class="icon"><use href="#i-check"/></svg> Confirmar cita</button>
+        <button id="drawer-remind" class="button ghost" type="button">Enviar recordatorio</button>
+        <button id="drawer-open-chat" class="button ghost" type="button">Ver conversación</button>
+      </div>
+    </aside>
 
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
     <script src="/admin/app.js" defer></script>
   </body>
 </html>
