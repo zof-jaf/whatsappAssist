@@ -4,6 +4,13 @@ Bot de WhatsApp con **IA local**, historial persistente y panel de administraci�
 
 > Proyecto pensado para uso personal o de un equipo pequeño. No es un chatbot multi-tenant ni está preparado para escalar horizontalmente.
 
+> **🆕 Plataforma multiusuario (web / despliegue):** se agregó `src/platform/` +
+> `public/platform/`, una aplicación desplegable con login, vinculación por QR,
+> **Neon PostgreSQL**, API key por proyecto, panel de administración y reportes.
+> Arrancá con `npm run dev:platform` (o `npm run start:platform` en producción).
+> Guía completa: **[docs/PLATFORM_DEPLOYMENT.md](docs/PLATFORM_DEPLOYMENT.md)**.
+> ⚠️ La credencial de Neon compartida en el prompt debe **rotarse** antes de desplegar.
+
 ---
 
 ## Índice
@@ -28,6 +35,8 @@ Bot de WhatsApp con **IA local**, historial persistente y panel de administraci�
 - [Desarrollo y pruebas](#desarrollo-y-pruebas)
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Limitaciones conocidas](#limitaciones-conocidas)
+- [📦 Plataforma multiusuario (despliegue web)](docs/PLATFORM_DEPLOYMENT.md)
+- [🗂️ Pendiente / roadmap](docs/PENDIENTE.md)
 
 ---
 
@@ -916,11 +925,23 @@ Documentación adicional:
 
 ## Limitaciones conocidas
 
-- **Un solo proceso de bot.** La cola y SQLite están pensadas para una instancia. No escales horizontalmente sin cambiar a Postgres y una cola distribuida.
+Las dos primeras aplican a **todo el proyecto**; el resto son del **bot legado** (`src/index.ts`, SQLite). La plataforma multiusuario nueva se documenta aparte en [`docs/PLATFORM_DEPLOYMENT.md`](docs/PLATFORM_DEPLOYMENT.md) y su estado en [`docs/PENDIENTE.md`](docs/PENDIENTE.md).
+
 - **Solo texto y metadata de multimedia.** No se transcriben audios ni se analizan imágenes. Las imágenes de una consulta de cotización se reenvían al tatuador, pero el bot no interpreta su contenido.
-- **Los mensajes enviados desde el teléfono no se capturan.** Solo se guardan los que pasan por el bot o por el panel.
 - **La calidad depende del modelo.** Un modelo de 3B es rápido pero limitado; uno de 7B/8B responde mejor y consume más RAM.
-- **WAHA Core tiene límites.** Una sesión y funciones avanzadas de pago según el caso de uso.
+
+### Bot legado (modo single-user)
+
+- **Un solo proceso por bot.** La cola y SQLite están pensadas para una instancia. La plataforma ya instancia un motor (worker + SQLite) por bot habilitado; el bot legado sigue siendo una única instancia en `/admin`.
+- **Los mensajes enviados desde el teléfono no se capturan.** Solo se guardan los que pasan por el bot o por el panel.
+- **WAHA Core tiene límites.** Una sesión y funciones avanzadas de pago según el caso de uso. La plataforma crea una sesión por bot (`bot_<uuid>`); la cantidad máxima depende del plan de WAHA.
 - **Las imágenes del historial dependen de WAHA.** El bot guarda la referencia a la URL de WAHA; si el archivo se borra, la referencia deja de servir. El volumen `waha_media` conserva los archivos y puede crecer con el tiempo.
-- **No hay autenticación de usuarios del panel.** Hay un único token compartido.
-- **No hay cifrado en reposo.** SQLite guarda el historial en texto plano; usá cifrado de disco si hace falta.
+- **Panel `/admin` legado:** un único token compartido (`ADMIN_TOKEN`). **La plataforma nueva sí tiene** login por usuario, roles y permisos.
+- **Sin cifrado en reposo en SQLite.** Usá cifrado de disco si hace falta. En la plataforma, las API keys se guardan como hash SHA-256 **y** cifradas con AES-256-GCM en Postgres (el motor descifra la suya en memoria para reportar eventos).
+
+### Plataforma multiusuario
+
+- **Puerto 4001** (`127.0.0.1:4001`); el bot legado permanece en 4000.
+- **Webhook**: WAHA sigue enviando al bot legado; este reenvía las sesiones ajenas a `platform:4001/webhook`, que enruta por sesión. Así el bot legado funciona aunque la plataforma no esté desplegada.
+- **Registro cerrado** por defecto: solo el administrador crea usuarios.
+- Verificación: `npm run smoke:platform` y `.github/workflows/ci.yml`.

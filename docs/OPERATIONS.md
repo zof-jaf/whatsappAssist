@@ -512,3 +512,52 @@ Semanal:
 - [ ] Logs sin errores repetitivos.
 - [ ] Revisar conversaciones con IA desactivada o archivadas por error.
 - [ ] Revisar eventos `ignored` por motivos inesperados.
+
+---
+
+## 13. Plataforma multiusuario
+
+La plataforma (`src/platform/`) corre en el servicio `platform` de Docker, en el
+puerto **4001** (el bot legado sigue en 4000).
+
+### Arranque y verificación
+
+```powershell
+docker compose up -d --build
+npm run platform:migrate          # paso de release (la app también migra al arrancar)
+npm run smoke:platform            # PLATFORM_BASE_URL=https://tu-dominio.com
+```
+
+- `GET /health` → `status: ok`, `engines: <n>` (motores activos).
+- `GET /ready` → 503 si PostgreSQL **o** WAHA están caídos.
+- `GET /` → SPA de login/registro.
+
+### Flujo del webhook
+
+1. WAHA envía todos los eventos al bot legado (`http://bot:4000/webhook`).
+2. El bot legado reenvía los eventos de **otras** sesiones a
+   `http://platform:4001/webhook`, firmados con la HMAC configurada.
+3. La plataforma valida la firma y lee `event.session`:
+   - si es un bot habilitado → lo atiende su motor (SQLite propia);
+   - si no → responde `404 UNKNOWN_SESSION`.
+4. Cada motor reporta `message_in`/`message_out` a `/api/ingest/events` con su
+   API key. Un fallo de reportes **no** detiene la conversación.
+
+### Operaciones frecuentes
+
+| Situación | Acción |
+| --- | --- |
+| Alta/baja de bots o rotación de key | El host sincroniza solo cada 30 s; no reiniciar. |
+| Un bot no responde | Revisar logs con `botId`; verificar que su sesión WAHA esté `WORKING`. |
+| Sesión WAHA en `FAILED` | El usuario hace *Reconectar* en el panel; se borra y se crea sesión nueva. |
+| Reportes vacíos | Verificar que los motores tengan `api_key_encrypted` (bots creados antes de la migración deben rotar la key). |
+| Eventos creciendo | `USAGE_EVENT_RETENTION_DAYS` (90) controla la limpieza cada 6 h. |
+
+### Seguridad
+
+- Registro cerrado (`ALLOW_PUBLIC_REGISTRATION=false`); el admin crea usuarios.
+- Las API keys se guardan como hash y cifradas; nunca se muestran dos veces.
+- `SESSION_SECRET`, `ADMIN_PASSWORD`, `DATABASE_URL` y `WAHA_ADMIN_API_KEY`
+  solo viven en `.env` / variables del proveedor.
+- Si se rotó la HMAC de WAHA, actualizar `PLATFORM_WEBHOOK_HMAC_KEY` y
+  `WAHA_WEBHOOK_HMAC_KEY` juntas.

@@ -34,6 +34,13 @@ import { sanitizeReply, truncate } from '../utils/text.js';
 import { NotFoundError, OllamaError, ValidationError } from '../errors.js';
 import { PermanentJobError } from './job-errors.js';
 
+export interface ConversationEvent {
+  type: 'message_in' | 'message_out';
+  chatId?: string;
+  messageId?: string;
+  chars?: number;
+}
+
 interface DeliverReplyOptions {
   conversation: ConversationRow;
   contact: ContactRow;
@@ -57,6 +64,7 @@ export class ConversationService {
     private readonly scheduling: SchedulingService,
     private readonly responseGuide: ResponseGuideService,
     private readonly logger: Logger,
+    private readonly onEvent?: (event: ConversationEvent) => void,
   ) {}
 
   async processJob(job: InboundJobRow, signal?: AbortSignal): Promise<void> {
@@ -125,6 +133,12 @@ export class ConversationService {
         },
         'Mensaje entrante guardado',
       );
+      this.onEvent?.({
+        type: 'message_in',
+        chatId: message.chatId,
+        messageId: message.waMessageId,
+        chars: message.body.length,
+      });
     }
 
     const alreadyDelivered = this.repos.messages.findOutboundReply(
@@ -633,6 +647,12 @@ export class ConversationService {
         },
         'Respuesta enviada por WhatsApp',
       );
+      this.onEvent?.({
+        type: 'message_out',
+        chatId: options.contact.wa_id,
+        messageId: result.id ?? undefined,
+        chars: options.text.length,
+      });
     } catch (error) {
       this.repos.messages.markFailed(outbound.id, errorMessage(error));
       throw error;

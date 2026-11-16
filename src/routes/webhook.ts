@@ -19,6 +19,16 @@ export interface WebhookRouterDeps {
   config: AppConfig;
   repos: Repositories;
   logger: Logger;
+  /** Sesión WAHA esperada. En el bot legado es config.waha.session; en la
+   * plataforma se pasa la sesión del bot resuelto antes de procesar. */
+  expectedSession?: string;
+  /** Eventos de otras sesiones se reenvían a la plataforma multiusuario. */
+  onOtherSession?: (event: WahaWebhookEvent, rawBody?: Buffer) => Promise<void>;
+}
+
+export interface WebhookResult {
+  status: number;
+  body: unknown;
 }
 
 function isAllowedChat(
@@ -48,9 +58,20 @@ function isArtistChat(
   return isArtistChatIdentity(config.tattoo.artistChatId, chatId, phoneJid);
 }
 
-export function createWebhookRouter(deps: WebhookRouterDeps): Router {
-  const router = Router();
+/**
+ * Procesa un evento de WAHA y devuelve la respuesta HTTP correspondiente.
+ * Compartido por el bot legado (una sesión) y por el worker-host de la
+ * plataforma (una instancia por sesión).
+ */
+export function processWebhookEvent(
+  deps: WebhookRouterDeps,
+  body: unknown,
+): WebhookResult {
   const { config, repos, logger } = deps;
+  const ok = (extra: Record<string, unknown> = {}, status = 200): WebhookResult => ({
+    status,
+    body: { ok: true, ...extra },
+  });
 
   const logEvent = (
     event: WahaWebhookEvent | undefined,
@@ -74,200 +95,201 @@ export function createWebhookRouter(deps: WebhookRouterDeps): Router {
     }
   };
 
-  router.post('/webhook', (req, res) => {
-    const body: unknown = req.body;
-
-    if (!isWahaWebhookEvent(body)) {
-      logger.warn('Webhook con formato inválido');
-      logEvent(undefined, 'error', 'formato_invalido');
-      res.status(400).json({
+  if (!isWahaWebhookEvent(body)) {
+    logger.warn('Webhook con formato inválido');
+    logEvent(undefined, 'error', 'formato_invalido');
+    return {
+      status: 400,
+      body: {
         error: {
           code: 'INVALID_WEBHOOK_PAYLOAD',
           message: 'El cuerpo no es un evento de WAHA válido',
         },
+      },
+    };
+  }
+
+  const event = body;
+  const expectedSession = deps.expectedSession ?? config.waha.session;
+
+  if (event.session && event.session !== expectedSession) {
+    logger.debug(
+      { session: event.session, expected: expectedSession },
+      'Evento de otra sesión ignorado',
+    );
+    logEvent(event, 'ignored', 'sesion_distinta');
+    return ok({ status: 'ignored', reason: 'session' });
+  }
+
+  try {
+    if (event.event === 'session.status') {
+      const info = parseSessionStatusEvent(event);
+      if (!info) {
+        logEvent(event, 'ignored', 'session_status_invalido');
+        return ok({ status: 'ignored' });
+      }
+
+      repos.meta.setJson('waha.session', {
+        status: info.status,
+        at: info.at,
+        me: info.me ?? null,
+        data: info.data ?? null,
       });
-      return;
+
+      if (info.status === 'SCAN_QR_CODE') {
+        logger.warn(
+          { dashboard: `${config.waha.publicUrl}/dashboard` },
+          'WAHA requiere escanear el código QR',
+        );
+      } else if (info.status === 'WORKING') {
+        logger.info('Sesión de WhatsApp conectada y trabajando');
+      } else if (info.status === 'FAILED') {
+        logger.error({ data: info.data }, 'La sesión de WhatsApp falló');
+      }
+
+      logEvent(event, 'processed', `session_status:${info.status}`);
+      return ok({ status: 'processed' });
     }
 
-    const event = body;
+    if (event.event === 'message.ack') {
+      const ack = parseAckEvent(event);
+      const status = ack ? ackToMessageStatus(ack) : undefined;
+      if (!ack || !status) {
+        logEvent(event, 'ignored', 'ack_no_mapeado');
+        return ok({ status: 'ignored' });
+      }
 
-    if (event.session && event.session !== config.waha.session) {
-      logger.debug(
-        { session: event.session, expected: config.waha.session },
-        'Evento de otra sesión ignorado',
-      );
-      logEvent(event, 'ignored', 'sesion_distinta');
-      res.status(200).json({ ok: true, status: 'ignored', reason: 'session' });
-      return;
+      repos.messages.updateStatusByWaMessageId(ack.waMessageId, status);
+      logEvent(event, 'processed', `ack:${status}`);
+      return ok({ status: 'processed' });
     }
 
-    try {
-      if (event.event === 'session.status') {
-        const info = parseSessionStatusEvent(event);
-        if (!info) {
-          logEvent(event, 'ignored', 'session_status_invalido');
-          res.status(200).json({ ok: true, status: 'ignored' });
-          return;
-        }
+    if (event.event !== 'message' && event.event !== 'message.any') {
+      logEvent(event, 'ignored', `evento:${event.event}`);
+      return ok({ status: 'ignored' });
+    }
 
-        repos.meta.setJson('waha.session', {
-          status: info.status,
-          at: info.at,
-          me: info.me ?? null,
-          data: info.data ?? null,
-        });
+    const parsed = parseMessageEvent(event);
+    if (!parsed.ok || !parsed.message) {
+      logEvent(event, 'ignored', parsed.reason ?? 'mensaje_invalido');
+      return ok({ status: 'ignored' });
+    }
 
-        if (info.status === 'SCAN_QR_CODE') {
-          logger.warn(
-            { dashboard: `${config.waha.publicUrl}/dashboard` },
-            'WAHA requiere escanear el código QR',
-          );
-        } else if (info.status === 'WORKING') {
-          logger.info('Sesión de WhatsApp conectada y trabajando');
-        } else if (info.status === 'FAILED') {
-          logger.error({ data: info.data }, 'La sesión de WhatsApp falló');
-        }
+    const message = parsed.message;
 
-        logEvent(event, 'processed', `session_status:${info.status}`);
-        res.status(200).json({ ok: true, status: 'processed' });
-        return;
-      }
+    if (message.fromMe) {
+      logEvent(event, 'ignored', 'from_me');
+      return ok({ status: 'ignored', reason: 'from_me' });
+    }
 
-      if (event.event === 'message.ack') {
-        const ack = parseAckEvent(event);
-        const status = ack ? ackToMessageStatus(ack) : undefined;
-        if (!ack || !status) {
-          logEvent(event, 'ignored', 'ack_no_mapeado');
-          res.status(200).json({ ok: true, status: 'ignored' });
-          return;
-        }
+    if (message.isBroadcast) {
+      logEvent(event, 'ignored', 'broadcast');
+      return ok({ status: 'ignored', reason: 'broadcast' });
+    }
 
-        repos.messages.updateStatusByWaMessageId(ack.waMessageId, status);
-        logEvent(event, 'processed', `ack:${status}`);
-        res.status(200).json({ ok: true, status: 'processed' });
-        return;
-      }
+    if (
+      message.isGroup &&
+      config.bot.ignoreGroups &&
+      !isArtistChat(message.chatId, message.phoneJid, config)
+    ) {
+      logEvent(event, 'ignored', 'grupo');
+      return ok({ status: 'ignored', reason: 'grupo' });
+    }
 
-      if (event.event !== 'message' && event.event !== 'message.any') {
-        logEvent(event, 'ignored', `evento:${event.event}`);
-        res.status(200).json({ ok: true, status: 'ignored' });
-        return;
-      }
+    const fromArtist = isArtistChat(
+      message.chatId,
+      message.phoneJid,
+      config,
+    );
 
-      const parsed = parseMessageEvent(event);
-      if (!parsed.ok || !parsed.message) {
-        logEvent(event, 'ignored', parsed.reason ?? 'mensaje_invalido');
-        res.status(200).json({ ok: true, status: 'ignored' });
-        return;
-      }
-
-      const message = parsed.message;
-
-      if (message.fromMe) {
-        logEvent(event, 'ignored', 'from_me');
-        res.status(200).json({ ok: true, status: 'ignored', reason: 'from_me' });
-        return;
-      }
-
-      if (message.isBroadcast) {
-        logEvent(event, 'ignored', 'broadcast');
-        res
-          .status(200)
-          .json({ ok: true, status: 'ignored', reason: 'broadcast' });
-        return;
-      }
-
-      if (
-        message.isGroup &&
-        config.bot.ignoreGroups &&
-        !isArtistChat(message.chatId, message.phoneJid, config)
-      ) {
-        logEvent(event, 'ignored', 'grupo');
-        res.status(200).json({ ok: true, status: 'ignored', reason: 'grupo' });
-        return;
-      }
-
-      const fromArtist = isArtistChat(
+    if (
+      !fromArtist &&
+      !isAllowedChat(
         message.chatId,
         message.phoneJid,
-        config,
-      );
-
-      if (
-        !fromArtist &&
-        !isAllowedChat(
-          message.chatId,
-          message.phoneJid,
-          config.bot.allowedChatIds,
-        )
-      ) {
-        logger.info(
-          { chatId: message.chatId },
-          'Mensaje de chat no permitido ignorado',
-        );
-        logEvent(event, 'ignored', 'chat_no_permitido');
-        res.status(200).json({
-          ok: true,
-          status: 'ignored',
-          reason: 'chat_no_permitido',
-        });
-        return;
-      }
-
-      if (message.body.trim().length === 0 && !message.hasMedia) {
-        logEvent(event, 'ignored', 'mensaje_vacio');
-        res.status(200).json({
-          ok: true,
-          status: 'ignored',
-          reason: 'mensaje_vacio',
-        });
-        return;
-      }
-
-      const result = repos.jobs.enqueue({
-        waMessageId: message.waMessageId,
-        chatId: message.chatId,
-        eventId: event.id,
-        payload: JSON.stringify(event),
-        maxAttempts: config.queue.maxAttempts,
-      });
-
-      if (!result.inserted) {
-        logEvent(event, 'duplicate', 'job_duplicado');
-        res.status(200).json({ ok: true, status: 'duplicate' });
-        return;
-      }
-
-      logEvent(event, 'queued');
+        config.bot.allowedChatIds,
+      )
+    ) {
       logger.info(
-        {
-          jobId: result.job.id,
-          chatId: message.chatId,
-          waMessageId: message.waMessageId,
-          event: event.event,
-          kind: message.kind,
-        },
-        'Mensaje encolado para procesamiento',
+        { chatId: message.chatId },
+        'Mensaje de chat no permitido ignorado',
       );
-      res.status(200).json({ ok: true, status: 'queued', jobId: result.job.id });
-    } catch (error) {
-      logger.error(
-        {
-          err: errorMessage(error),
-          event: event.event,
-          eventId: event.id,
-        },
-        'Error procesando webhook',
-      );
-      logEvent(event, 'error', errorMessage(error));
-      res.status(500).json({
+      logEvent(event, 'ignored', 'chat_no_permitido');
+      return ok({ status: 'ignored', reason: 'chat_no_permitido' });
+    }
+
+    if (message.body.trim().length === 0 && !message.hasMedia) {
+      logEvent(event, 'ignored', 'mensaje_vacio');
+      return ok({ status: 'ignored', reason: 'mensaje_vacio' });
+    }
+
+    const result = repos.jobs.enqueue({
+      waMessageId: message.waMessageId,
+      chatId: message.chatId,
+      eventId: event.id,
+      payload: JSON.stringify(event),
+      maxAttempts: config.queue.maxAttempts,
+    });
+
+    if (!result.inserted) {
+      logEvent(event, 'duplicate', 'job_duplicado');
+      return ok({ status: 'duplicate' });
+    }
+
+    logEvent(event, 'queued');
+    logger.info(
+      {
+        jobId: result.job.id,
+        chatId: message.chatId,
+        waMessageId: message.waMessageId,
+        event: event.event,
+        kind: message.kind,
+      },
+      'Mensaje encolado para procesamiento',
+    );
+    return ok({ status: 'queued', jobId: result.job.id });
+  } catch (error) {
+    logger.error(
+      {
+        err: errorMessage(error),
+        event: event.event,
+        eventId: event.id,
+      },
+      'Error procesando webhook',
+    );
+    logEvent(event, 'error', errorMessage(error));
+    return {
+      status: 500,
+      body: {
         error: {
           code: 'WEBHOOK_PROCESSING_ERROR',
           message: 'No se pudo procesar el webhook',
         },
+      },
+    };
+  }
+}
+
+export function createWebhookRouter(deps: WebhookRouterDeps): Router {
+  const router = Router();
+  router.post('/webhook', (req, res) => {
+    const expected = deps.expectedSession ?? deps.config.waha.session;
+    if (
+      deps.onOtherSession &&
+      isWahaWebhookEvent(req.body) &&
+      req.body.session &&
+      req.body.session !== expected
+    ) {
+      const raw = (req as typeof req & { rawBody?: Buffer }).rawBody;
+      void deps.onOtherSession(req.body, raw).catch((error) => {
+        deps.logger.warn(
+          { err: errorMessage(error), session: req.body.session },
+          'No se pudo reenviar el evento a la plataforma',
+        );
       });
     }
+    const result = processWebhookEvent(deps, req.body);
+    res.status(result.status).json(result.body);
   });
-
   return router;
 }

@@ -19,6 +19,8 @@ services:
       WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD:?Falta WAHA_DASHBOARD_PASSWORD en .env}
       WHATSAPP_SWAGGER_USERNAME: ${WAHA_DASHBOARD_USERNAME:-admin}
       WHATSAPP_SWAGGER_PASSWORD: ${WAHA_DASHBOARD_PASSWORD:?Falta WAHA_DASHBOARD_PASSWORD en .env}
+      # WAHA envía todo al bot legado; este reenvía las sesiones que no son la
+      # suya a la plataforma (PLATFORM_WEBHOOK_URL) para que las enrute por bot.
       WHATSAPP_HOOK_URL: http://bot:4000/webhook
       WHATSAPP_HOOK_EVENTS: message,session.status,message.ack
       WHATSAPP_HOOK_HMAC_KEY: ${WAHA_WEBHOOK_HMAC_KEY:?Falta WAHA_WEBHOOK_HMAC_KEY en .env}
@@ -39,6 +41,18 @@ services:
     volumes:
       - waha_sessions:/app/.sessions
       - waha_media:/app/.media
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/sessions',{headers:{'X-Api-Key':process.env.WAHA_API_KEY}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     logging:
       driver: json-file
       options:
@@ -146,6 +160,8 @@ services:
       DATABASE_PATH: /app/data/bot.db
       WAHA_BASE_URL: http://waha:3000
       WAHA_PUBLIC_URL: ${WAHA_PUBLIC_URL:-http://localhost:3000}
+      # Reenvío de sesiones multiusuario a la plataforma (opcional).
+      PLATFORM_WEBHOOK_URL: ${PLATFORM_WEBHOOK_URL:-http://platform:4001/webhook}
       OLLAMA_BASE_URL: http://ollama:11434
       LOG_PRETTY: "false"
     ports:
@@ -177,9 +193,69 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ---------------------------------------------------------------------------
+  # Plataforma multiusuario: login, sesiones WAHA por usuario, reportes y un
+  # motor (worker + SQLite) por bot. Expuesta en 4001 para no colisionar con
+  # el panel legado del bot en 4000.
+  # ---------------------------------------------------------------------------
+  platform:
+    build: .
+    container_name: wa-bot-platform
+    restart: unless-stopped
+    depends_on:
+      waha:
+        condition: service_healthy
+      bot:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "4001"
+      # Requieren valores reales en .env; si faltan, solo falla este contenedor.
+      DATABASE_URL: ${DATABASE_URL:-}
+      WAHA_BASE_URL: http://waha:3000
+      WAHA_ADMIN_API_KEY: ${WAHA_ADMIN_API_KEY:-}
+      PLATFORM_BASE_URL: http://platform:4001
+      PLATFORM_WEBHOOK_HMAC_KEY: ${WAHA_WEBHOOK_HMAC_KEY:-}
+      LEGACY_SESSION_NAME: ${WAHA_SESSION:-default}
+      LEGACY_WEBHOOK_URL: http://bot:4000
+      ENGINE_DATA_DIR: /app/data/bots
+      ALLOW_PUBLIC_REGISTRATION: "false"
+      COOKIE_SECURE: "true"
+      APP_BASE_URL: ${PLATFORM_PUBLIC_URL:-https://TU-DOMINIO.com}
+      TRUST_PROXY: "true"
+      LOG_PRETTY: "false"
+    ports:
+      - "127.0.0.1:4001:4001"
+    volumes:
+      - platform_bots:/app/data/bots
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   bot_data:
   bot_backups:
   waha_sessions:
   waha_media:
   ollama_data:
+  platform_bots:

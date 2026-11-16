@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { createHmac } from 'node:crypto';
 import { resolve } from 'node:path';
 import { loadConfig, type AppConfig } from './config.js';
 import { createLogger, type Logger } from './logger.js';
@@ -21,6 +22,30 @@ import { APP_VERSION } from './version.js';
 import { ConfigError } from './errors.js';
 import { errorMessage } from './utils/async.js';
 import type { Server } from 'node:http';
+
+/** Reenvía eventos de otras sesiones WAHA a la plataforma multiusuario. */
+function createPlatformForwarder(config: AppConfig, logger: Logger) {
+  const url = process.env.PLATFORM_WEBHOOK_URL?.trim();
+  if (!url) return undefined;
+
+  return async (event: unknown, rawBody?: Buffer): Promise<void> => {
+    const body = rawBody ?? Buffer.from(JSON.stringify(event));
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (config.waha.hmacKey) {
+      headers['x-webhook-hmac'] = createHmac('sha512', config.waha.hmacKey)
+        .update(body)
+        .digest('hex');
+      headers['x-webhook-hmac-algorithm'] = 'sha512';
+    }
+    const response = await fetch(url, { method: 'POST', headers, body });
+    if (!response.ok) {
+      logger.warn(
+        { status: response.status, url },
+        'La plataforma rechazó el reenvío de un evento',
+      );
+    }
+  };
+}
 
 interface Runtime {
   config: AppConfig;
@@ -147,6 +172,7 @@ async function main(): Promise<void> {
     worker,
     logger,
     publicDir: resolve(process.cwd(), 'public'),
+    onOtherSession: createPlatformForwarder(config, logger),
   });
 
   const server = app.listen(config.server.port, config.server.host, () => {

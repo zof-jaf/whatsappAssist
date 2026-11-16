@@ -370,3 +370,38 @@ Más detalle en [`OPERATIONS.md`](OPERATIONS.md).
 - No hay telemetría ni servicios externos en el flujo del bot.
 - Los backups contienen datos personales: tratalos como información sensible.
 - Para borrar definitivamente una conversación, eliminá la fila de `conversations` (cascade) o la base completa con el bot detenido. No hay borrado selectivo desde el panel.
+
+---
+
+## PostgreSQL de la plataforma multiusuario
+
+Además de la SQLite del bot legado, la plataforma usa **Neon PostgreSQL** para
+el control de acceso y los reportes. Las migraciones están en
+`src/platform/db.ts` y se aplican solas al arrancar (o con
+`npm run platform:migrate`).
+
+| Tabla | Clave | Propósito |
+| --- | --- | --- |
+| `users` | `id UUID` | Email único, `password_hash` (scrypt), `role`, `status`, `can_create_bots`. |
+| `bots` | `id UUID` | Un bot por usuario (`user_id UNIQUE`), `waha_session UNIQUE`, `api_key_hash`, `api_key_preview`, `api_key_encrypted` (AES-256-GCM), `enabled`, `connection_status`. |
+| `user_sessions` | `token_hash` | Sesiones web hasheadas con pepper, expiración y revocación. |
+| `usage_events` | `id BIGSERIAL` | Eventos (`message_in`, `message_out`, `login`, …) con `meta JSONB`, `user_id` y `bot_id` para reportes aislados. |
+
+### Dónde viven las conversaciones
+
+El historial de mensajes **no está en Postgres**: cada bot habilitado tiene su
+propia SQLite en `ENGINE_DATA_DIR/<botId>/bot.db`, creada por
+`src/platform/worker-host.ts`. El aislamiento es por archivo, con el mismo
+esquema descrito arriba para el bot legado.
+
+Postgres guarda únicamente la identidad del bot y los eventos agregados. Un
+evento `message_in`/`message_out` se escribe desde el motor con la API key del
+bot (`X-Api-Key: wbp_...`), y el servidor lo atribuye al `user_id` correcto
+resolviendo el hash de esa key.
+
+### Retención
+
+`cleanupPlatformData()` elimina `usage_events` con más de
+`USAGE_EVENT_RETENTION_DAYS` (90 por defecto) y sesiones vencidas/revocadas,
+cada 6 horas. Los mensajes de las SQLite por bot **no se purgan**: son el
+historial, igual que en el bot legado.

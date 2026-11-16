@@ -38,6 +38,8 @@ export interface AppDependencies {
   worker?: InboundWorker;
   logger: Logger;
   publicDir: string;
+  /** Reenvío de sesiones ajenas a la plataforma multiusuario (opcional). */
+  onOtherSession?: (event: unknown, rawBody?: Buffer) => Promise<void>;
 }
 
 export function createApp(deps: AppDependencies): express.Express {
@@ -148,7 +150,14 @@ export function createApp(deps: AppDependencies): express.Express {
 
   app.use(
     createWebhookHmacMiddleware(config.waha.hmacKey, logger),
-    createWebhookRouter({ config, repos, logger }),
+    createWebhookRouter({
+      config,
+      repos,
+      logger,
+      onOtherSession: deps.onOtherSession
+        ? (event, rawBody) => deps.onOtherSession!(event, rawBody)
+        : undefined,
+    }),
   );
 
   app.use(

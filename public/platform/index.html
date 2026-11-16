@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Plataforma multiusuario de bots de WhatsApp con WAHA" />
+    <title>WhatsApp Platform</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- Vista de autenticación -->
+    <section id="auth-view" class="auth-shell">
+      <div class="auth-card">
+        <div class="brand">
+          <div class="brand-mark">WA</div>
+          <div>
+            <h1>WhatsApp Platform</h1>
+            <p class="muted">Gestioná tus bots de WhatsApp</p>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button id="tab-login" class="tab active" type="button">Ingresar</button>
+          <button id="tab-register" class="tab" type="button">Registrarme</button>
+        </div>
+
+        <form id="login-form" class="form">
+          <label>Correo electrónico
+            <input name="email" type="email" autocomplete="email" required />
+          </label>
+          <label>Contraseña
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <p id="auth-error" class="error" hidden></p>
+          <button class="btn btn-primary" type="submit">Ingresar</button>
+        </form>
+
+        <form id="register-form" class="form" hidden>
+          <label>Nombre completo
+            <input name="fullName" type="text" autocomplete="name" />
+          </label>
+          <label>Correo electrónico
+            <input name="email" type="email" autocomplete="email" required />
+          </label>
+          <label>Contraseña (mínimo 8 caracteres)
+            <input name="password" type="password" autocomplete="new-password" minlength="8" required />
+          </label>
+          <p id="register-error" class="error" hidden></p>
+          <button class="btn btn-primary" type="submit">Crear cuenta</button>
+        </form>
+      </div>
+      <p class="auth-footer">Cada usuario gestiona su propia sesión y API key. Sin compartir credenciales.</p>
+    </section>
+
+    <!-- Vista principal -->
+    <div id="app-view" class="app-shell" hidden>
+      <aside class="sidebar">
+        <div class="brand brand-side">
+          <div class="brand-mark">WA</div>
+          <div>
+            <strong>Platform</strong>
+            <span class="muted small" id="side-role">Usuario</span>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-item active" data-view="dashboard" type="button">Mi bot</button>
+          <button class="nav-item" data-view="reports" type="button">Reportes</button>
+          <button class="nav-item admin-only" data-view="admin" type="button" hidden>Administración</button>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logout-btn" class="btn btn-ghost" type="button">Cerrar sesión</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h2 id="view-title">Mi bot</h2>
+            <p class="muted small" id="view-subtitle">Estado de conexión y vinculación</p>
+          </div>
+          <div class="user-badge">
+            <span id="user-name">—</span>
+            <span class="muted small" id="user-email">—</span>
+          </div>
+        </header>
+
+        <div id="global-error" class="error banner" hidden></div>
+
+        <!-- Dashboard -->
+        <section id="view-dashboard" class="view">
+          <div class="grid">
+            <article class="card">
+              <h3>Estado de conexión</h3>
+              <p id="conn-label" class="status-pill status-idle">Sin verificar</p>
+              <p class="muted small" id="conn-detail">Hacé clic en "Verificar conexión" para iniciar.</p>
+              <div class="row">
+                <button id="check-conn" class="btn btn-primary" type="button">Verificar conexión</button>
+                <button id="new-qr" class="btn btn-ghost" type="button">Generar QR nuevo</button>
+              </div>
+            </article>
+
+            <article class="card qr-card">
+              <h3>Vincular WhatsApp</h3>
+              <div id="qr-wrap" class="qr-wrap" hidden>
+                <img id="qr-img" alt="Código QR de vinculación" />
+                <p class="muted small">Escaneá con WhatsApp → Dispositivos vinculados → Vincular dispositivo.</p>
+              </div>
+              <p id="qr-placeholder" class="muted">El código QR aparecerá acá cuando tu sesión necesite vinculación.</p>
+            </article>
+
+            <article class="card">
+              <h3>Mi bot</h3>
+              <div id="bot-empty" hidden>
+                <p class="muted">Todavía no creaste un bot.</p>
+                <button id="create-bot" class="btn btn-primary" type="button">Crear mi bot</button>
+              </div>
+              <div id="bot-info" hidden>
+                <dl class="detail-list">
+                  <dt>Nombre</dt><dd id="bot-name">—</dd>
+                  <dt>Sesión WAHA</dt><dd id="bot-session" class="mono">—</dd>
+                  <dt>Teléfono</dt><dd id="bot-phone" class="mono">—</dd>
+                </dl>
+                <div class="row">
+                  <button id="rotate-key" class="btn btn-ghost" type="button">Rotar API key</button>
+                  <button id="delete-bot" class="btn btn-danger" type="button">Eliminar bot</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="card">
+              <h3>API key de este proyecto</h3>
+              <p class="muted small">Se muestra una sola vez. Guardala en tu proyecto: es la credencial con la que el bot informa su actividad.</p>
+              <div id="api-key-box" class="api-key-box" hidden>
+                <code id="api-key-value"></code>
+                <button id="copy-key" class="btn btn-ghost btn-sm" type="button">Copiar</button>
+              </div>
+              <p id="api-key-preview" class="muted mono small"></p>
+              <p id="api-key-warning" class="notice" hidden>Guardá esta key ahora: no volverá a mostrarse en claro.</p>
+            </article>
+          </div>
+        </section>
+
+        <!-- Reportes del usuario -->
+        <section id="view-reports" class="view" hidden>
+          <div class="stat-grid" id="my-summary"></div>
+          <article class="card">
+            <h3>Actividad diaria (mensajes)</h3>
+            <div id="my-series" class="series"></div>
+          </article>
+          <article class="card">
+            <h3>Eventos recientes</h3>
+            <div class="table-wrap"><table id="my-events" class="table"></table></div>
+          </article>
+        </section>
+
+        <!-- Administración -->
+        <section id="view-admin" class="view" hidden>
+          <div class="stat-grid" id="admin-summary"></div>
+          <article class="card">
+            <div class="card-head">
+              <h3>Usuarios</h3>
+              <button id="open-create-user" class="btn btn-primary btn-sm" type="button">Nuevo usuario</button>
+            </div>
+            <div class="row">
+              <input id="user-search" type="search" placeholder="Buscar por correo o nombre" />
+            </div>
+            <div class="table-wrap"><table id="admin-users" class="table"></table></div>
+          </article>
+          <article class="card">
+            <h3>Reporte por usuario (últimos 30 días)</h3>
+            <div class="table-wrap"><table id="admin-report" class="table"></table></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <!-- Modal crear usuario -->
+    <div id="user-modal" class="modal" hidden>
+      <div class="modal-card">
+        <h3>Crear usuario</h3>
+        <form id="create-user-form" class="form">
+          <label>Nombre completo<input name="fullName" type="text" /></label>
+          <label>Correo<input name="email" type="email" required /></label>
+          <label>Contraseña temporal<input name="password" type="password" minlength="8" required /></label>
+          <label>Perfil
+            <select name="role">
+              <option value="user">Usuario</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </label>
+          <label class="checkbox"><input name="canCreateBots" type="checkbox" checked /> Puede crear bots</label>
+          <p id="create-user-error" class="error" hidden></p>
+          <div class="row">
+            <button class="btn btn-primary" type="submit">Crear</button>
+            <button id="close-user-modal" class="btn btn-ghost" type="button">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
