@@ -108,7 +108,7 @@ describe('ConversationService', () => {
     );
 
     const sent = app.waha.sent[0]?.text ?? '';
-    expect(sent).toBe('¡Hola! ¿En qué puedo ayudarte?');
+    expect(sent).toBe('¡Hola! ¿En qué te ayudo?');
     expect(sent).not.toContain('Formato de respuestas');
     expect(sent).not.toContain('#');
   });

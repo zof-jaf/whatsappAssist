@@ -218,6 +218,28 @@ export class ConversationService {
       return;
     }
 
+    // Si el cliente ya recibió el precio y elige día y hora, la cita se
+    // registra en Notion antes de confirmarla. Se corre primero para que una
+    // confirmación de cita (p. ej. "el martes a las 4") no se clasifique como
+    // una nueva cotización.
+    const schedulingOutcome = await this.scheduling.tryHandleClientMessage({
+      message,
+      conversation,
+      contact,
+      inbound: inbound.message,
+    });
+    if (schedulingOutcome.handled) {
+      await this.deliverReply({
+        conversation,
+        contact,
+        inbound: inbound.message,
+        text: schedulingOutcome.replyText,
+        kind: 'system',
+      });
+      await this.summaries.maybeSummarize(conversation.id, signal);
+      return;
+    }
+
     // Si el cliente pide precio, manda medidas o imágenes, la consulta se
     // deriva al tatuador y no se llama al modelo.
     const quoteOutcome = await this.quotes.handleClientMessage({
@@ -233,26 +255,6 @@ export class ConversationService {
         contact,
         inbound: inbound.message,
         text: quoteOutcome.replyText,
-        kind: 'system',
-      });
-      await this.summaries.maybeSummarize(conversation.id, signal);
-      return;
-    }
-
-    // Si el cliente ya recibió el precio y elige día y hora, la cita se
-    // registra en Notion antes de confirmarla.
-    const schedulingOutcome = await this.scheduling.tryHandleClientMessage({
-      message,
-      conversation,
-      contact,
-      inbound: inbound.message,
-    });
-    if (schedulingOutcome.handled) {
-      await this.deliverReply({
-        conversation,
-        contact,
-        inbound: inbound.message,
-        text: schedulingOutcome.replyText,
         kind: 'system',
       });
       await this.summaries.maybeSummarize(conversation.id, signal);

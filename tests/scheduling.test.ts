@@ -316,4 +316,43 @@ describe('agenda de citas en Notion', () => {
     expect(clientMessage?.text).toContain('Todavía no puedo confirmar la cita');
     expect(clientMessage?.text).not.toContain('quedó agendada');
   });
+
+  it('entiende "4 de la tarde" como hora de la tarde', async () => {
+    const app = notionContext();
+    await deliverQuote(app);
+
+    await send(
+      app,
+      makeMessageEvent({
+        from: CLIENT,
+        body: 'el martes a las 4 de la tarde',
+      }),
+    );
+
+    expect(app.notionClient.pages).toHaveLength(1);
+    const quote = app.repos.quoteRequests.getByCode('COT-000001');
+    expect(quote?.appointment_at).toMatch(/T21:00:00\.000Z$/);
+
+    const clientMessage = app.waha.sent.find(
+      (item) => item.chatId === CLIENT,
+    );
+    expect(clientMessage?.text).toContain('dejé agendada la cita');
+  });
+
+  it('entiende "el martes a las 4" como hora de la tarde', async () => {
+    const app = notionContext();
+    await deliverQuote(app);
+
+    await send(
+      app,
+      makeMessageEvent({
+        from: CLIENT,
+        body: 'el martes a las 4',
+      }),
+    );
+
+    expect(app.notionClient.pages).toHaveLength(1);
+    const quote = app.repos.quoteRequests.getByCode('COT-000001');
+    expect(quote?.appointment_at).toMatch(/T21:00:00\.000Z$/);
+  });
 });

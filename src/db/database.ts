@@ -147,6 +147,12 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE quote_requests ADD COLUMN notion_page_id TEXT;
   ALTER TABLE quote_requests ADD COLUMN notion_page_url TEXT;
   `,
+  `
+  ALTER TABLE quote_requests ADD COLUMN kind TEXT NOT NULL DEFAULT 'quote'
+    CHECK (kind IN ('quote', 'question'));
+  CREATE INDEX idx_quote_requests_kind
+    ON quote_requests(kind, status);
+  `,
 ];
 
 export interface OpenDatabaseOptions {

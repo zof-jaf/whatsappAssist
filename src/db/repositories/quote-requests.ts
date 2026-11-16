@@ -1,5 +1,9 @@
 import type { Db } from '../database.js';
-import type { QuoteRequestRow, QuoteRequestStatus } from '../types.js';
+import type {
+  QuoteRequestKind,
+  QuoteRequestRow,
+  QuoteRequestStatus,
+} from '../types.js';
 import { nowIso } from '../../utils/time.js';
 
 export interface CreateQuoteRequestInput {
@@ -10,6 +14,7 @@ export interface CreateQuoteRequestInput {
   requestMediaUrl?: string | null;
   requestMediaMime?: string | null;
   requestMediaFilename?: string | null;
+  kind?: QuoteRequestKind;
   expiresAt: string;
 }
 
@@ -47,8 +52,9 @@ export class QuoteRequestRepository {
           `INSERT INTO quote_requests (
             code, conversation_id, contact_id, inbound_message_id,
             request_body, request_media_url, request_media_mime,
-            request_media_filename, status, expires_at, created_at, updated_at
-          ) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+            request_media_filename, status, expires_at, created_at, updated_at,
+            kind
+          ) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
         )
         .run(
           input.conversationId,
@@ -61,6 +67,7 @@ export class QuoteRequestRepository {
           input.expiresAt,
           now,
           now,
+          input.kind ?? 'quote',
         );
 
       const id = Number(result.lastInsertRowid);
@@ -89,32 +96,62 @@ export class QuoteRequestRepository {
 
   /** Última consulta relevante de una conversación (pendiente o respondida). */
   latestByConversation(conversationId: number): QuoteRequestRow | undefined {
+    return this.latestByKind(conversationId);
+  }
+
+  /** Última consulta de precio; la agenda solo debe mirar este tipo. */
+  latestQuoteByConversation(
+    conversationId: number,
+  ): QuoteRequestRow | undefined {
+    return this.latestByKind(conversationId, 'quote');
+  }
+
+  /** Última pregunta sobre el tatuaje derivada al tatuador. */
+  latestQuestionByConversation(
+    conversationId: number,
+  ): QuoteRequestRow | undefined {
+    return this.latestByKind(conversationId, 'question');
+  }
+
+  private latestByKind(
+    conversationId: number,
+    kind?: QuoteRequestKind,
+  ): QuoteRequestRow | undefined {
     this.expireStale();
     const cutoff = new Date(
       Date.now() - QUOTE_CONTEXT_WINDOW_MS,
     ).toISOString();
+    const kindFilter = kind ? 'AND kind = ?' : '';
+    const params = kind
+      ? [conversationId, cutoff, kind]
+      : [conversationId, cutoff];
     return this.db
       .prepare(
         `SELECT * FROM quote_requests
          WHERE conversation_id = ?
            AND status IN ('pending', 'answered', 'delivered')
            AND (status = 'pending' OR created_at >= ?)
+           ${kindFilter}
          ORDER BY id DESC LIMIT 1`,
       )
-      .get(conversationId, cutoff) as QuoteRequestRow | undefined;
+      .get(...params) as QuoteRequestRow | undefined;
   }
 
   findPendingByConversation(
     conversationId: number,
+    kind?: QuoteRequestKind,
   ): QuoteRequestRow | undefined {
     this.expireStale();
+    const kindFilter = kind ? 'AND kind = ?' : '';
+    const params = kind ? [conversationId, kind] : [conversationId];
     return this.db
       .prepare(
         `SELECT * FROM quote_requests
          WHERE conversation_id = ? AND status = 'pending'
+           ${kindFilter}
          ORDER BY id DESC LIMIT 1`,
       )
-      .get(conversationId) as QuoteRequestRow | undefined;
+      .get(...params) as QuoteRequestRow | undefined;
   }
 
   /**

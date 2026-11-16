@@ -3,6 +3,7 @@ import type {
   ContactRow,
   ConversationRow,
   MessageRow,
+  QuoteRequestKind,
   QuoteRequestRow,
 } from '../db/types.js';
 import type { Repositories } from '../db/repositories/index.js';
@@ -11,7 +12,9 @@ import type { Logger } from '../logger.js';
 import type { NormalizedInboundMessage } from '../domain/waha.js';
 import {
   artistReplyContainsPrice,
+  hasNewQuoteDetails,
   isQuoteRequestMessage,
+  isTattooQuestionText,
   parseQuoteCode,
   replyContainsPrice,
   replyIsOffTopic,
@@ -23,16 +26,16 @@ import { errorMessage } from '../utils/async.js';
 import { truncate } from '../utils/text.js';
 
 const PENDING_REPLY =
-  'Ya tengo tu consulta en revisión con el tatuador. Apenas me confirme el precio te lo paso por acá.';
+  'Tranquilo, ya está en revisión con el tatuador. Apenas me responda te escribo por acá con la info.';
 
 const NO_PRICE_REPLY =
-  'El precio exacto lo define el tatuador. Contame el tamaño aproximado, la zona del cuerpo y, si tenés, una imagen de referencia, y le paso tu consulta.';
-
-const OFF_TOPIC_REPLY =
-  'Para cotizar no necesito el significado del diseño. Contame el tamaño aproximado, la zona del cuerpo y si tenés una imagen de referencia.';
+  'Ese dato lo maneja el tatuador, así que no te voy a inventar un precio. Contame el tamaño aproximado, la zona del cuerpo y, si tenés, una imagen de referencia, y con gusto le paso tu consulta.';
 
 const ARTIST_SINGLE_PENDING_HINT =
   'Podés responder directamente a este mensaje con el precio.';
+
+const ARTIST_QUESTION_HINT =
+  'Podés responder directamente a este mensaje con la respuesta.';
 
 export type QuoteClientOutcome =
   | { handled: false }
@@ -89,10 +92,13 @@ export class QuoteService {
   ): Promise<QuoteClientOutcome> {
     if (!this.artistChatId) return { handled: false };
     if (input.message.fromMe) return { handled: false };
-    if (!isQuoteRequestMessage(input.message)) return { handled: false };
+
+    const kind = this.classifyClientMessage(input.message);
+    if (!kind) return { handled: false };
 
     const pending = this.repos.quoteRequests.findPendingByConversation(
       input.conversation.id,
+      kind,
     );
 
     if (pending) {
@@ -101,7 +107,7 @@ export class QuoteService {
       if (pending.inbound_message_id === input.inbound.id) {
         return {
           handled: true,
-          replyText: this.acknowledgment(input.message),
+          replyText: this.acknowledgment(input.message, kind),
         };
       }
 
@@ -110,14 +116,43 @@ export class QuoteService {
         {
           quoteId: pending.id,
           code: pending.code,
+          kind,
           conversationId: input.conversation.id,
         },
-        'Información adicional de cotización reenviada al tatuador',
+        kind === 'question'
+          ? 'Pregunta adicional reenviada al tatuador'
+          : 'Información adicional de cotización reenviada al tatuador',
       );
       return {
         handled: true,
-        replyText: `Sumé estos datos a tu consulta. Sigue en revisión con ${this.config.tattoo.artistName}; apenas me confirme el precio te lo paso por acá.`,
+        replyText:
+          kind === 'question'
+            ? `Sumé tu pregunta a la conversación con ${this.config.tattoo.artistName}. Apenas me responda te escribo por acá.`
+            : `Sumé estos datos a tu consulta. Sigue en revisión con ${this.config.tattoo.artistName}; apenas me confirme el precio te lo paso por acá.`,
       };
+    }
+
+    // Si ya hay una cotización entregada y el cliente vuelve a preguntar el
+    // precio sin dar datos nuevos, no se crea otra consulta: se repite la
+    // información que ya dio el tatuador.
+    if (kind === 'quote') {
+      const latestQuote =
+        this.repos.quoteRequests.latestQuoteByConversation(
+          input.conversation.id,
+        );
+      if (
+        latestQuote &&
+        (latestQuote.status === 'answered' ||
+          latestQuote.status === 'delivered') &&
+        latestQuote.artist_reply &&
+        !input.message.hasMedia &&
+        !hasNewQuoteDetails(input.message.body)
+      ) {
+        return {
+          handled: true,
+          replyText: this.repeatQuoteReply(latestQuote),
+        };
+      }
     }
 
     const expiresAt = addMilliseconds(
@@ -131,6 +166,7 @@ export class QuoteService {
       requestMediaUrl: input.message.mediaUrl,
       requestMediaMime: input.message.mediaMime,
       requestMediaFilename: input.message.mediaFilename,
+      kind,
       expiresAt,
     });
 
@@ -153,16 +189,52 @@ export class QuoteService {
       {
         quoteId: quote.id,
         code: quote.code,
+        kind,
         conversationId: input.conversation.id,
         hasMedia: input.message.hasMedia,
       },
-      'Consulta de cotización derivada al tatuador',
+      kind === 'question'
+        ? 'Pregunta sobre el tatuaje derivada al tatuador'
+        : 'Consulta de cotización derivada al tatuador',
     );
 
     return {
       handled: true,
-      replyText: this.acknowledgment(input.message),
+      replyText: this.acknowledgment(input.message, kind),
     };
+  }
+
+  private classifyClientMessage(
+    message: NormalizedInboundMessage,
+  ): QuoteRequestKind | null {
+    if (isQuoteRequestMessage(message)) return 'quote';
+    if (isTattooQuestionText(message.body)) return 'question';
+    return null;
+  }
+
+  /**
+   * Repite la cotización ya entregada cuando el cliente vuelve a preguntar
+   * por el precio, sin abrir una consulta nueva.
+   */
+  private repeatQuoteReply(quote: QuoteRequestRow): string {
+    const reply = truncate(quote.artist_reply?.trim() ?? '', 1200);
+    if (!reply) return PENDING_REPLY;
+
+    const parts = ['Ya te había pasado la info del tatuador:', reply];
+    if (quote.appointment_at) {
+      parts.push(
+        `La cita ya quedó agendada para el ${formatDateTime(
+          new Date(quote.appointment_at),
+          this.config.bot.timeZone,
+        )}. Si necesitás moverla, avisame por acá.`,
+      );
+    } else {
+      parts.push(
+        'Si querés avanzar, contame qué día y horario te queda bien y con gusto coordinamos la cita.',
+      );
+    }
+
+    return truncate(parts.join('\n\n'), this.config.bot.maxReplyChars);
   }
 
   /**
@@ -198,11 +270,12 @@ export class QuoteService {
           const detail = item.request_body
             ? truncate(item.request_body.replace(/\s+/g, ' '), 90)
             : 'archivo adjunto';
-          return `• ${item.code}: ${name} — ${detail}`;
+          const label = item.kind === 'question' ? 'Pregunta' : 'Cotización';
+          return `• ${item.code} [${label}]: ${name} — ${detail}`;
         });
         await this.replyToArtist(
           [
-            `Hay ${pending.length} consultas pendientes. Respondé incluyendo el código para saber a quién enviarle el precio:`,
+            `Hay ${pending.length} consultas pendientes. Respondé incluyendo el código para saber a quién enviarle la respuesta:`,
             '',
             ...lines,
           ].join('\n'),
@@ -247,14 +320,17 @@ export class QuoteService {
 
     if (!replyText && !input.message.hasMedia) {
       await this.replyToArtist(
-        `Recibí tu mensaje para ${quote.code}, pero necesito el texto del precio para enviárselo al cliente.`,
+        quote.kind === 'question'
+          ? `Recibí tu mensaje para ${quote.code}, pero necesito el texto de la respuesta para enviárselo al cliente.`
+          : `Recibí tu mensaje para ${quote.code}, pero necesito el texto del precio para enviárselo al cliente.`,
       );
       return;
     }
 
-    // El tatuador solo define el precio. Si escribe una fecha, un saludo o
-    // cualquier texto sin precio, no se reenvía al cliente como cotización.
-    if (!artistReplyContainsPrice(replyText)) {
+    // En una cotización el tatuador solo define el precio. Si escribe una
+    // fecha, un saludo o cualquier texto sin precio, no se reenvía al cliente
+    // como cotización. En una pregunta la respuesta puede ser texto libre.
+    if (quote.kind === 'quote' && !artistReplyContainsPrice(replyText)) {
       await this.replyToArtist(
         [
           `Recibí tu mensaje para ${quote.code}, pero no encontré un precio.`,
@@ -299,7 +375,8 @@ export class QuoteService {
         new Date(latest.created_at),
         this.config.bot.timeZone,
       );
-      return `Hay una consulta ${latest.code ?? ''} pendiente con el tatuador desde ${since}. No inventes precios ni plazos: cuando el tatuador responda, la respuesta se enviará automáticamente al cliente.`;
+      const tipo = latest.kind === 'question' ? 'consulta' : 'cotización';
+      return `Hay una ${tipo} ${latest.code ?? ''} pendiente con el tatuador desde ${since}. No inventes precios ni plazos: cuando el tatuador responda, la respuesta se enviará automáticamente al cliente.`;
     }
 
     if (
@@ -310,12 +387,13 @@ export class QuoteService {
         ? ` La cita ya quedó agendada para ${formatDateTime(
             new Date(latest.appointment_at),
             this.config.bot.timeZone,
-          )}. No vuelvas a pedir día ni horario ni a confirmar otra cita.`
+          )}. Si necesitás moverla, avisame por acá.`
         : '';
-      return `El tatuador ya respondió la consulta ${latest.code ?? ''}: "${truncate(
+      const tipo = latest.kind === 'question' ? 'pregunta' : 'cotización';
+      return `Ya te pasé la ${tipo} ${latest.code ?? ''}: "${truncate(
         latest.artist_reply,
         1500,
-      )}". Usá esa respuesta para continuar con el agendamiento (día, horario y seña si corresponde). No inventes otro precio.${appointment}`;
+      )}". Usá esa respuesta para seguir con el cliente (precio, día, horario y seña si corresponde). No inventes otro precio.${appointment}`;
     }
 
     return null;
@@ -333,11 +411,12 @@ export class QuoteService {
       (latest.status === 'answered' || latest.status === 'delivered') &&
       !!latest.artist_reply;
 
-    if (replyIsOffTopic(reply)) return OFF_TOPIC_REPLY;
-    if (replyIsRefusal(reply)) return pending ? PENDING_REPLY : NO_PRICE_REPLY;
-    if (replyContainsPrice(reply) && !answered) {
+    if (replyIsOffTopic(reply))
+      return 'Para cotizar no necesito el significado del diseño. Contame el tamaño aproximado, la zona del cuerpo y si tenés una imagen de referencia.';
+    if (replyIsRefusal(reply))
       return pending ? PENDING_REPLY : NO_PRICE_REPLY;
-    }
+    if (replyContainsPrice(reply) && !answered)
+      return pending ? PENDING_REPLY : NO_PRICE_REPLY;
 
     // No permitir que la IA diga que la cita ya quedó agendada si todavía no
     // existe un evento real en la agenda, haya o no una cotización previa.
@@ -353,10 +432,17 @@ export class QuoteService {
     return reply;
   }
 
-  private acknowledgment(message: NormalizedInboundMessage): string {
-    return message.hasMedia
-      ? 'Recibí el archivo. Ya se lo reenvié al tatuador para que lo revise; apenas me confirme el precio te lo paso por acá.'
-      : 'Listo, ya le pasé tu consulta al tatuador. Apenas me confirme el precio te lo paso por acá.';
+  private acknowledgment(
+    message: NormalizedInboundMessage,
+    kind: QuoteRequestKind,
+  ): string {
+    const base =
+      kind === 'question'
+        ? 'Con gusto te ayudo con eso. Te lo consulto al tatuador y apenas me responda te escribo por acá.'
+        : message.hasMedia
+          ? 'Recibí el archivo. Ya se lo mostré al tatuador; apenas me confirme el precio te lo paso por acá.'
+          : 'De una, ya le pasé tu consulta al tatuador. Apenas me confirme el precio te lo escribo por acá.';
+    return truncate(base, this.config.bot.maxReplyChars);
   }
 
   private buildClientRelay(
@@ -374,9 +460,9 @@ export class QuoteService {
       parts.push('Te envió un archivo con la información.');
     }
 
-    if (!mentionsScheduling) {
+    if (!mentionsScheduling && quote.kind === 'quote') {
       parts.push(
-        'Si querés avanzar, contame qué día y horario te queda cómodo y coordinamos la cita.',
+        'Si querés avanzar, contame qué día y horario te queda bien y coordinamos la cita.',
       );
     }
 
@@ -483,7 +569,7 @@ export class QuoteService {
       contact.display_name ?? contact.push_name ?? contact.phone ?? contact.wa_id;
     const code = quote.code ?? 'sin código';
     const lines = [
-      `${isUpdate ? 'Actualización de la consulta' : 'Nueva consulta de cotización'} ${code}`,
+      `${isUpdate ? 'Actualización de la consulta' : quote.kind === 'question' ? 'Nueva pregunta sobre el tatuaje' : 'Nueva consulta de cotización'} ${code}`,
       `Cliente: ${name}${contact.phone ? ` (${contact.phone})` : ''}`,
     ];
 
@@ -495,7 +581,9 @@ export class QuoteService {
 
     lines.push(
       '',
-      `${ARTIST_SINGLE_PENDING_HINT} Si tenés varias consultas pendientes, incluí el código ${code} en tu respuesta.`,
+      `${
+        quote.kind === 'question' ? ARTIST_QUESTION_HINT : ARTIST_SINGLE_PENDING_HINT
+      } Si tenés varias consultas pendientes, incluí el código ${code} en tu respuesta.`,
     );
 
     const text = truncate(lines.join('\n'), 2400);

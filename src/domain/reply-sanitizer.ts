@@ -214,8 +214,8 @@ export function naturalReplyFallback(inbound: string): string {
   }
 
   if (GREETING.test(inbound)) {
-    return '¡Hola! ¿En qué puedo ayudarte?';
+    return '¡Hola! ¿En qué te ayudo?';
   }
 
-  return 'Contame un poco más sobre el tatuaje o retoque que querés cotizar.';
+  return 'Contame un poco más del tatuaje o retoque que tenés en mente y de una le paso la consulta al tatuador.';
 }

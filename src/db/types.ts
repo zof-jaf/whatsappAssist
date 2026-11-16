@@ -16,6 +16,13 @@ export type QuoteRequestStatus =
   | 'delivered'
   | 'cancelled'
   | 'expired';
+/**
+ * `quote`: el cliente pidió un precio y el tatuador debe responder con un
+ * valor. `question`: el cliente hizo una pregunta sobre el tatuaje que no es
+ * de agendamiento (descuentos, pagos, cuidados, condiciones, diseño, etc.) y
+ * el tatuador puede responder con texto libre.
+ */
+export type QuoteRequestKind = 'quote' | 'question';
 export type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
 export type WebhookEventStatus = 'queued' | 'processed' | 'ignored' | 'duplicate' | 'error';
 
@@ -90,6 +97,7 @@ export interface QuoteRequestRow {
   request_media_url: string | null;
   request_media_mime: string | null;
   request_media_filename: string | null;
+  kind: QuoteRequestKind;
   status: QuoteRequestStatus;
   artist_reply: string | null;
   artist_inbound_message_id: number | null;

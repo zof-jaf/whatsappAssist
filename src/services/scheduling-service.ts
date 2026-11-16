@@ -56,7 +56,7 @@ export class SchedulingService {
   ): Promise<SchedulingOutcome> {
     if (input.message.fromMe) return { handled: false };
 
-    const quote = this.repos.quoteRequests.latestByConversation(
+    const quote = this.repos.quoteRequests.latestQuoteByConversation(
       input.conversation.id,
     );
     if (!quote || !quote.artist_reply) return { handled: false };
@@ -97,7 +97,7 @@ export class SchedulingService {
         });
         return {
           handled: true,
-          replyText: `Perfecto, ${intent.date.label}. ¿A qué hora te queda cómodo?`,
+          replyText: `Déjalo ahí, ${intent.date.label}. ¿A qué hora te queda bien?`,
         };
       }
       if (intent?.time && !intent.date) {
@@ -107,7 +107,7 @@ export class SchedulingService {
         });
         return {
           handled: true,
-          replyText: `Perfecto, ${intent.time.label}. ¿Qué día te queda cómodo?`,
+          replyText: `Déjalo ahí, ${intent.time.label}. ¿Qué día te queda bien?`,
         };
       }
       return { handled: false };
@@ -192,7 +192,7 @@ export class SchedulingService {
         replyText: [
           `Listo, dejé agendada la cita para el ${label}.`,
           `Código de cita: ${code}.`,
-          'Si necesitás cambiarla, avisame por acá.',
+          'Si necesitás cambiarla, avisame por acá, que la movemos sin problema.',
         ].join(' '),
       };
     } catch (error) {

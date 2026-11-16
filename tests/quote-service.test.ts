@@ -364,4 +364,111 @@ describe('flujo de cotización con el tatuador', () => {
     expect(system).toContain('pendiente con el tatuador');
     expect(system).not.toContain('# Formato de respuestas');
   });
+
+  it('deriva una negociación de precio al tatuador sin responder el bot', async () => {
+    const app = context();
+
+    await send(
+      app,
+      makeMessageEvent({
+        from: CLIENT,
+        body: '¿Me lo dejas más barato?',
+      }),
+    );
+
+    expect(app.ollama.calls).toHaveLength(0);
+
+    const pending = app.repos.quoteRequests.listPending(10);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.status).toBe('pending');
+    expect(pending[0]?.kind).toBe('question');
+
+    const clientMessage = app.waha.sent.find(
+      (item) => item.chatId === CLIENT,
+    );
+    expect(clientMessage?.text).toContain('tatuador');
+
+    const artistMessage = app.waha.sent.find(
+      (item) => item.chatId === ARTIST,
+    );
+    expect(artistMessage?.text).toContain('Nueva pregunta sobre el tatuaje');
+    expect(artistMessage?.text).toContain('más barato');
+  });
+
+  it('envía la respuesta del tatuador a una pregunta sin precio', async () => {
+    const app = context();
+
+    await send(
+      app,
+      makeMessageEvent({
+        from: CLIENT,
+        body: '¿Incluye el cuidado posterior?',
+      }),
+    );
+    app.waha.sent.length = 0;
+
+    await send(
+      app,
+      makeMessageEvent({
+        from: ARTIST,
+        body: 'COT-000001 Sí, te paso las instrucciones al terminar.',
+        pushName: 'Julian',
+        data: {
+          key: {
+            remoteJid: '212648796905552@lid',
+            remoteJidAlt: '573189458461@s.whatsapp.net',
+            fromMe: false,
+            addressingMode: 'lid',
+          },
+        },
+      }),
+    );
+
+    const clientMessage = app.waha.sent.find(
+      (item) => item.chatId === CLIENT,
+    );
+    expect(clientMessage?.text).toContain('Respuesta del tatuador');
+    expect(clientMessage?.text).toContain('instrucciones');
+
+    const quote = app.repos.quoteRequests.getByCode('COT-000001');
+    expect(quote?.status).toBe('delivered');
+    expect(quote?.kind).toBe('question');
+  });
+
+  it('no crea una cotización duplicada cuando el cliente vuelve a preguntar el precio', async () => {
+    const app = context();
+
+    await send(
+      app,
+      makeMessageEvent({
+        from: CLIENT,
+        body: '¿Cuánto sale un tatuaje de 10 cm en el brazo?',
+      }),
+    );
+    await send(
+      app,
+      makeMessageEvent({
+        from: ARTIST,
+        body: 'COT-000001 $80.000',
+      }),
+    );
+    app.waha.sent.length = 0;
+
+    await send(
+      app,
+      makeMessageEvent({
+        from: CLIENT,
+        body: '¿Y cuánto sale entonces?',
+      }),
+    );
+
+    expect(app.ollama.calls).toHaveLength(0);
+    expect(app.repos.quoteRequests.listPending(10)).toHaveLength(0);
+
+    const clientMessage = app.waha.sent.find(
+      (item) => item.chatId === CLIENT,
+    );
+    expect(clientMessage?.text).toContain('Ya te había pasado la info');
+    expect(clientMessage?.text).toContain('80.000');
+  });
 });

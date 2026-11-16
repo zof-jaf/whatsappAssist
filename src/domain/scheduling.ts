@@ -241,7 +241,7 @@ function parseRelativeDate(
   const relative = /\b(hoy|pasado\s+manana|manana)\b/.exec(text);
   if (relative?.[1]) {
     const expression = relative[1];
-    if (expression === 'manana' && /\bde\s+la\s+manana\b/.test(text)) {
+    if (expression === 'manana' && /\b(?:de|d)\s+la\s+manana\b/.test(text)) {
       return null;
     }
     const offset =
@@ -304,7 +304,7 @@ function parseTime(
     return { hour, minute };
   }
 
-  const daytime = /\b(?:a\s+las?\s+)?(\d{1,2})\s+(?:de\s+la|por\s+la)\s+(manana|tarde|noche)\b/.exec(
+  const daytime = /\b(?:a\s+las?\s+)?(\d{1,2})\s*(?:de|d|por)\s+la\s+(manana|tarde|noche)\b/.exec(
     text,
   );
   if (daytime?.[1] && daytime[2]) {
@@ -315,6 +315,17 @@ function parseTime(
     if (period === 'tarde' && rawHour !== 12) hour += 12;
     if (period === 'noche' && rawHour !== 12) hour += 12;
     return { hour, minute: 0 };
+  }
+
+  // “El martes a las 4” sin am/pm ni “de la tarde”. En una cita de tatuaje,
+  // las horas de 1 a 7 se entienden de la tarde; de 8 a 12, de la mañana.
+  const bare = /\ba\s+las?\s+(\d{1,2})(?::(\d{1,2}))?\b/.exec(text);
+  if (bare?.[1]) {
+    const rawHour = Number(bare[1]);
+    const minute = Number(bare[2] ?? 0);
+    if (rawHour < 1 || rawHour > 23 || minute > 59) return null;
+    const hour = rawHour >= 1 && rawHour <= 7 ? rawHour + 12 : rawHour;
+    return { hour, minute };
   }
 
   return null;

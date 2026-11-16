@@ -87,7 +87,7 @@ describe('limpieza de respuestas con la guía interna', () => {
 describe('respuesta natural de respaldo', () => {
   it('responde a un saludo', () => {
     expect(naturalReplyFallback('Buenas noches')).toBe(
-      '¡Hola! ¿En qué puedo ayudarte?',
+      '¡Hola! ¿En qué te ayudo?',
     );
   });
 
@@ -99,7 +99,7 @@ describe('respuesta natural de respaldo', () => {
 
   it('invita a contar más en otros casos', () => {
     expect(naturalReplyFallback('Quiero hacerme algo')).toBe(
-      'Contame un poco más sobre el tatuaje o retoque que querés cotizar.',
+      'Contame un poco más del tatuaje o retoque que tenés en mente y de una le paso la consulta al tatuador.',
     );
   });
 });
