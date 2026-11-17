@@ -1,13 +1,12 @@
 'use strict';
 
-const TOKEN_KEY = 'wa_admin_token';
 const REFRESH_MS = 20_000;
 const WHATSAPP_REFRESH_MS = 5_000;
 
 const state = {
   token: '',
   inApp: false,
-  tab: 'overview',
+  tab: 'agenda',
   timeZone: undefined,
   overview: null,
   detail: null,
@@ -65,20 +64,21 @@ const state = {
     loaded: false,
   },
   agenda: {
+    items: [],
     search: '',
     artist: 'all',
     status: 'all',
     period: 'semana',
     selected: null,
+    loaded: false,
   },
+  artists: { items: [], loaded: false },
+  flash: { items: [], filter: 'all', loaded: false },
+  ai: { settings: null, loading: false },
+  users: { items: [], loaded: false },
 };
 
-/* ---------- Agenda / catálogo ----------
-   El proyecto arranca vacío: no hay registros ilustrativos. Las citas reales
-   viven en Notion y se cargarán desde la integración cuando esté conectada. */
-const APPOINTMENTS = [];
 const CHAT_SCRIPT = [];
-const FLASH_ITEMS = [];
 const FLASH_ART = {};
 
 const $ = (selector) => document.querySelector(selector);
@@ -86,8 +86,8 @@ const $ = (selector) => document.querySelector(selector);
 const els = {
   loginView: $('#login-view'),
   loginForm: $('#login-form'),
-  loginToken: $('#login-token'),
-  loginRemember: $('#login-remember'),
+  loginUsername: $('#login-username'),
+  loginPassword: $('#login-password'),
   loginSubmit: $('#login-submit'),
   loginError: $('#login-error'),
   appView: $('#app-view'),
@@ -99,7 +99,6 @@ const els = {
   tabs: Array.from(document.querySelectorAll('.nav-item')),
   panels: {
     agenda: $('#tab-agenda'),
-    overview: $('#tab-overview'),
     conversations: $('#tab-conversations'),
     whatsapp: $('#tab-whatsapp'),
     artistas: $('#tab-artistas'),
@@ -132,7 +131,6 @@ const els = {
   botInfo: $('#bot-info'),
   queueInfo: $('#queue-info'),
   wahaLink: $('#waha-link'),
-  refreshOverview: $('#refresh-overview'),
   conversationList: $('#conversation-list'),
   conversationsCount: $('#conversations-count'),
   conversationSearch: $('#conversation-search'),
@@ -184,7 +182,19 @@ const els = {
   toastContainer: $('#toast-container'),
   goWhatsApp: $('#go-whatsapp'),
   goConversations: $('#go-conversations'),
-  goSystem: $('#go-system'),
+  artistsGrid: $('#artists-grid'),
+  flashCount: $('#flash-count'),
+  aiProvider: $('#ai-provider'),
+  aiModel: $('#ai-model'),
+  aiApiKey: $('#ai-api-key'),
+  aiKeyToggle: $('#ai-key-toggle'),
+  aiTest: $('#ai-test'),
+  aiSave: $('#ai-save'),
+  aiStatus: $('#ai-status'),
+  aiHint: $('#ai-hint'),
+  aiForm: $('#ai-form'),
+  usersList: $('#users-list'),
+  openUserModal: $('#open-user-modal'),
 };
 
 /* ---------- Utilidades ---------- */
@@ -356,15 +366,13 @@ async function api(path, options = {}) {
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
-  if (state.token) {
-    headers.Authorization = `Bearer ${state.token}`;
-  }
 
   let response;
   try {
     response = await fetch(`/api/admin${path}`, {
       method,
       headers,
+      credentials: 'same-origin',
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
   } catch {
@@ -404,7 +412,7 @@ async function apiAuthed(path, options) {
     return await api(path, options);
   } catch (error) {
     if (error.status === 401) {
-      logout('La sesión expiró. Volvé a ingresar el token de administración.');
+      logout('La sesión expiró. Volvé a iniciar sesión.');
     }
     throw error;
   }
@@ -417,58 +425,10 @@ function handleError(error) {
 
 /* ---------- Sesión ---------- */
 
-function safeGet(storage, key) {
-  try {
-    return storage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function safeSet(storage, key, value) {
-  try {
-    storage.setItem(key, value);
-  } catch {
-    /* almacenamiento no disponible */
-  }
-}
-
-function safeRemove(storage, key) {
-  try {
-    storage.removeItem(key);
-  } catch {
-    /* almacenamiento no disponible */
-  }
-}
-
-function readStoredToken() {
-  return (
-    safeGet(window.sessionStorage, TOKEN_KEY) ||
-    safeGet(window.localStorage, TOKEN_KEY) ||
-    ''
-  );
-}
-
-function storeToken(token, remember) {
-  safeRemove(window.sessionStorage, TOKEN_KEY);
-  safeRemove(window.localStorage, TOKEN_KEY);
-  if (remember) {
-    safeSet(window.localStorage, TOKEN_KEY, token);
-  } else {
-    safeSet(window.sessionStorage, TOKEN_KEY, token);
-  }
-}
-
-function clearStoredToken() {
-  safeRemove(window.sessionStorage, TOKEN_KEY);
-  safeRemove(window.localStorage, TOKEN_KEY);
-}
-
 function showLogin(message) {
   stopAutoRefresh();
   stopWhatsAppPolling();
   state.inApp = false;
-  state.token = '';
   state.detail = null;
   state.currentId = null;
   els.appView.hidden = true;
@@ -481,7 +441,7 @@ function showLogin(message) {
   } else {
     els.loginError.hidden = true;
   }
-  setTimeout(() => els.loginToken.focus(), 30);
+  setTimeout(() => els.loginUsername.focus(), 30);
 }
 
 function showApp(overview) {
@@ -499,13 +459,16 @@ function showApp(overview) {
 
   // Si WhatsApp todavía no está conectado, mostramos primero el QR.
   const needsWhatsApp = overview?.health?.waha?.status !== 'WORKING';
-  activateTab(needsWhatsApp ? 'whatsapp' : 'agenda');
-  if (needsWhatsApp) void loadWhatsApp();
+  switchTab(needsWhatsApp ? 'whatsapp' : 'agenda');
   startAutoRefresh();
 }
 
-function logout(message) {
-  clearStoredToken();
+async function logout(message) {
+  try {
+    await api('/auth/logout', { method: 'POST' });
+  } catch {
+    /* la cookie expiró o el servidor no responde: igual salimos */
+  }
   showLogin(message);
 }
 
@@ -513,7 +476,6 @@ function logout(message) {
 
 const TAB_LABELS = {
   agenda: 'Agenda',
-  overview: 'Resumen',
   conversations: 'Conversaciones',
   whatsapp: 'Flujo del Bot',
   artistas: 'Artistas',
@@ -560,17 +522,15 @@ function switchTab(tab, options = {}) {
   }
   activateTab(tab);
   if (tab === 'agenda') {
-    renderAgenda();
-  } else if (tab === 'overview') {
-    void loadOverview();
+    void loadAppointments();
   } else if (tab === 'conversations') {
     void loadConversations();
   } else if (tab === 'whatsapp') {
     void loadWhatsApp();
   } else if (tab === 'artistas') {
-    // Vista estática del directorio del estudio.
+    void loadArtists();
   } else if (tab === 'flash') {
-    renderFlash();
+    void loadFlash();
   } else if (tab === 'system') {
     void loadSystem();
   }
@@ -581,10 +541,10 @@ function startAutoRefresh() {
   state.refreshTimer = setInterval(() => {
     if (
       state.inApp &&
-      state.tab === 'overview' &&
+      state.tab === 'system' &&
       document.visibilityState === 'visible'
     ) {
-      void loadOverview({ silent: true });
+      void loadSystem({ silent: true });
     }
   }, REFRESH_MS);
 }
@@ -656,10 +616,17 @@ function renderInfoList(element, entries) {
 }
 
 function aiProviderLabel(provider) {
-  return provider === 'groq' ? 'Groq' : 'Ollama';
+  const labels = {
+    groq: 'Groq',
+    openai: 'OpenAI',
+    openrouter: 'OpenRouter',
+    gemini: 'Google Gemini',
+    anthropic: 'Anthropic',
+  };
+  return labels[provider] || provider || 'IA';
 }
 
-function setConnectionChip(health, aiProvider = 'ollama') {
+function setConnectionChip(health, aiProvider = 'groq') {
   let severity = 'ok';
   let label = 'Operativo';
   const provider = aiProviderLabel(aiProvider);
@@ -677,9 +644,7 @@ function setConnectionChip(health, aiProvider = 'ollama') {
     label = health.waha.ok ? `${provider} sin conexión` : 'Dependencias caídas';
   } else if (!health.ollama.hasModel) {
     if (severity !== 'error') severity = 'warn';
-    label = aiProvider === 'groq'
-      ? 'Modelo de Groq no disponible'
-      : 'Modelo sin descargar';
+    label = `Modelo de ${provider} no disponible`;
   }
 
   els.connectionChip.className = `chip ${severity}`;
@@ -695,7 +660,7 @@ function setConnectionChip(health, aiProvider = 'ollama') {
   }
 }
 
-function renderHealth(container, health, worker, aiProvider = 'ollama') {
+function renderHealth(container, health, worker, aiProvider = 'groq') {
   const parts = [];
   const provider = aiProviderLabel(aiProvider);
 
@@ -727,13 +692,11 @@ function renderHealth(container, health, worker, aiProvider = 'ollama') {
   const aiDetail = health.ollama.ok
     ? health.ollama.hasModel
       ? `Modelo disponible en ${provider} (${health.ollama.models.length} modelo/s)`
-      : aiProvider === 'groq'
-        ? `${provider} responde, pero el modelo configurado no está disponible en tu cuenta`
-        : `${provider} responde, pero falta el modelo configurado`
+      : `${provider} responde, pero el modelo configurado no está disponible en tu cuenta`
     : `${provider}: ${health.ollama.error || 'no se pudo contactar'}`;
   parts.push(
     healthItem(
-      aiProvider === 'groq' ? 'Groq / IA en la nube' : 'Ollama / IA local',
+      `${provider} / IA en la nube`,
       health.ollama.ok ? (health.ollama.hasModel ? 'ok' : 'warn') : 'error',
       aiDetail,
     ),
@@ -1264,7 +1227,7 @@ async function saveTattoo(event) {
     applyTattooData(data);
     els.tattooPhone.value = data.phone ?? '';
     toast(`Tatuador configurado: ${data.displayPhone || data.chatId}`);
-    if (state.tab === 'overview') void loadOverview({ silent: true });
+    if (state.tab === 'system') void loadOverview({ silent: true });
   });
 }
 
@@ -1281,7 +1244,7 @@ async function clearTattoo() {
     });
     applyTattooData(data);
     toast('Número del tatuador quitado');
-    if (state.tab === 'overview') void loadOverview({ silent: true });
+    if (state.tab === 'system') void loadOverview({ silent: true });
   });
 }
 
@@ -1885,11 +1848,11 @@ async function exportConversation(button) {
   await withBusy(button, async () => {
     const response = await fetch(
       `/api/admin/conversations/${data.conversation.id}/export`,
-      { headers: { Authorization: `Bearer ${state.token}` } },
+      { credentials: 'same-origin' },
     );
 
     if (response.status === 401) {
-      logout('La sesión expiró. Volvé a ingresar el token.');
+      logout('La sesión expiró. Volvé a iniciar sesión.');
       return;
     }
     if (!response.ok) {
@@ -1932,8 +1895,16 @@ async function sendManualMessage() {
 
 async function loadSystem(options = {}) {
   try {
-    const data = await apiAuthed('/system');
+    const [data, overview] = await Promise.all([
+      apiAuthed('/system'),
+      apiAuthed('/overview'),
+    ]);
     renderSystem(data);
+    state.overview = overview;
+    state.timeZone = overview.bot?.timeZone;
+    renderOverview(overview);
+    applyAiSettings(data.ai || (await apiAuthed('/ai')));
+    await loadUsers({ silent: true });
   } catch (error) {
     if (!options.silent) handleError(error);
   }
@@ -2067,6 +2038,19 @@ function appointmentDate(item) {
   return new Date(item.at);
 }
 
+async function loadAppointments(options = {}) {
+  try {
+    const data = await apiAuthed('/appointments');
+    state.agenda.items = data.items ?? [];
+    state.agenda.loaded = true;
+    renderAgenda();
+    renderBento();
+    populateArtistOptions();
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  }
+}
+
 function filteredAppointments() {
   const query = state.agenda.search.trim().toLowerCase();
   const now = new Date();
@@ -2084,7 +2068,7 @@ function filteredAppointments() {
     end.setMonth(now.getMonth() + 1, 1);
   }
 
-  return APPOINTMENTS.filter((item) => {
+  return state.agenda.items.filter((item) => {
     if (state.agenda.status !== 'all' && item.status !== state.agenda.status) return false;
     if (state.agenda.artist !== 'all' && item.artist !== state.agenda.artist) return false;
     if (query && !`${item.code} ${item.client} ${item.phone} ${item.design} ${item.zone}`.toLowerCase().includes(query)) return false;
@@ -2153,28 +2137,51 @@ function renderAgenda() {
     ? items.map(appointmentRow).join('')
     : '<tr><td colspan="9" class="table-empty">No hay citas que coincidan con los filtros.</td></tr>';
   els.agendaCount.textContent = `${items.length} ${items.length === 1 ? 'registro' : 'registros'}`;
-  els.agendaFootCount.textContent = `mostrando ${items.length} de ${APPOINTMENTS.length}`;
+  els.agendaFootCount.textContent = `mostrando ${items.length} de ${state.agenda.items.length}`;
   if (els.agendaPeriodLabel) els.agendaPeriodLabel.textContent = periodLabel();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const todayCount = APPOINTMENTS.filter((item) => {
+  const todayCount = state.agenda.items.filter((item) => {
     const date = appointmentDate(item);
     return date >= today && date < tomorrow && ['confirmada', 'pendiente'].includes(item.status);
   }).length;
-  const quoteCount = APPOINTMENTS.filter((item) => item.status === 'cotizacion').length;
+  const all = state.agenda.items;
+  const quoteCount = all.filter((item) => item.status === 'cotizacion').length;
+  const pendingCount = all.filter((item) => item.status === 'pendiente').length;
+  const confirmedCount = all.filter((item) => item.status === 'confirmada').length;
+  const weekStart = new Date(today);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekCount = all.filter((item) => {
+    const date = appointmentDate(item);
+    return date >= weekStart && date < weekEnd;
+  }).length;
+  const deposits = all
+    .filter((item) => item.paid)
+    .reduce((total, item) => total + (Number(item.deposit) || 0), 0);
+
+  const setKpi = (id, value) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = value;
+  };
+  setKpi('kpi-week', String(weekCount));
+  setKpi('kpi-pending', String(pendingCount));
+  setKpi('kpi-quotes', String(quoteCount));
+  setKpi('kpi-deposits', money(deposits));
+  setKpi('kpi-confirmed', String(confirmedCount));
+
   const countAgenda = document.getElementById('nav-count-agenda');
-  const countQuotes = document.getElementById('nav-count-quotes');
   if (countAgenda) countAgenda.textContent = String(todayCount).padStart(2, '0');
-  if (countQuotes) countQuotes.textContent = String(quoteCount).padStart(2, '0');
 }
 
 function renderBento() {
   const now = Date.now();
   const horizon = now + 3 * 86_400_000;
-  const upcoming = APPOINTMENTS
+  const upcoming = state.agenda.items
     .filter((item) => {
       const date = appointmentDate(item).getTime();
       return date >= now && date <= horizon && item.status !== 'cancelada';
@@ -2194,7 +2201,7 @@ function renderBento() {
       }).join('')
     : '<p class="muted small">Sin sesiones en las próximas 72 h.</p>';
 
-  const stale = APPOINTMENTS.filter((item) => item.status === 'cotizacion').slice(0, 3);
+  const stale = state.agenda.items.filter((item) => item.status === 'cotizacion').slice(0, 3);
   els.staleList.innerHTML = stale.length
     ? stale.map((item) => `<div class="stale-item">
         <div><strong>${esc(item.client)}</strong><small>${esc(item.code)} · ${esc(item.design)}</small></div>
@@ -2207,7 +2214,7 @@ function renderBento() {
 }
 
 function openAppointment(code) {
-  const item = APPOINTMENTS.find((entry) => entry.code === code);
+  const item = state.agenda.items.find((entry) => entry.code === code);
   if (!item) return;
   state.agenda.selected = code;
   const date = appointmentDate(item);
@@ -2263,49 +2270,485 @@ function closeDrawer() {
 
 /* ---------- Catálogo flash ---------- */
 
+async function loadFlash(options = {}) {
+  try {
+    const data = await apiAuthed('/flash');
+    state.flash.items = data.items ?? [];
+    state.flash.loaded = true;
+    renderFlash(state.flash.filter);
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  }
+}
+
 function renderFlash(filter = 'all') {
   if (!els.flashGrid) return;
+  state.flash.filter = filter;
   const items = filter === 'all'
-    ? FLASH_ITEMS
-    : FLASH_ITEMS.filter((item) => item.category === filter);
+    ? state.flash.items
+    : state.flash.items.filter((item) => item.category === filter);
+
+  if (els.flashCount) {
+    els.flashCount.textContent = `${state.flash.items.length} diseño${
+      state.flash.items.length === 1 ? '' : 's'
+    } disponible${state.flash.items.length === 1 ? '' : 's'}`;
+  }
 
   els.flashGrid.innerHTML = items.length
     ? items.map((item) => `
     <article class="card flash-card">
       <div class="flash-art">
         <span class="flash-code">${esc(item.code)}</span>
-        <svg viewBox="0 0 100 100" aria-hidden="true">${FLASH_ART[item.art] ?? ''}</svg>
+        ${item.imageUrl
+          ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.name)}" loading="lazy" />`
+          : '<svg viewBox="0 0 100 100" aria-hidden="true">' + (FLASH_ART[item.art] ?? '') + '</svg>'}
       </div>
       <div class="flash-body">
         <h3>${esc(item.name)}</h3>
-        <p>${esc(item.category)} · disponible para agendar</p>
+        <p>${esc(item.category)} · ${item.active ? 'disponible para agendar' : 'oculto'}</p>
         <div class="flash-meta"><span class="price">${money(item.price)}</span><span class="size">${esc(item.size)}</span></div>
+        ${item.description ? `<p class="muted small">${esc(item.description)}</p>` : ''}
+        <div class="flash-card-actions">
+          <button class="button ghost small" type="button" data-flash-edit="${item.id}">Editar</button>
+          <button class="button ghost small" type="button" data-flash-delete="${item.id}">Eliminar</button>
+        </div>
       </div>
     </article>`).join('')
     : '<p class="muted small">El catálogo está vacío. Agregá diseños cuando quieras.</p>';
 }
 
+/* ---------- Modales y gestiones ---------- */
+
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.hidden = false;
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.hidden = true;
+}
+
+function closeAllModals() {
+  document.querySelectorAll('.modal-backdrop').forEach((node) => {
+    node.hidden = true;
+  });
+}
+
+function showFormError(id, message) {
+  const node = document.getElementById(id);
+  if (!node) return;
+  node.textContent = message || '';
+  node.hidden = !message;
+}
+
+function fillForm(form, values) {
+  if (!form) return;
+  form.reset();
+  Object.entries(values || {}).forEach(([key, value]) => {
+    const field = form.elements.namedItem(key);
+    if (!field) return;
+    if (field instanceof HTMLInputElement && field.type === 'checkbox') {
+      field.checked = Boolean(value);
+    } else {
+      field.value = value ?? '';
+    }
+  });
+}
+
+function formValues(form) {
+  const data = new FormData(form);
+  const values = {};
+  for (const [key, value] of data.entries()) values[key] = value;
+  form.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    values[input.name] = input.checked;
+  });
+  return values;
+}
+
+function toLocalInput(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function fromLocalInput(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+}
+
+/* ---------- Artistas ---------- */
+
+function populateArtistOptions() {
+  const names = state.artists.items.map((item) => item.name).filter(Boolean);
+  const selects = [els.agendaArtist];
+  const appointmentArtist = document.querySelector('#appointment-form select[name="artist"]');
+  if (appointmentArtist) selects.push(appointmentArtist);
+
+  selects.forEach((select) => {
+    if (!select) return;
+    const current = select.value;
+    const base = select === els.agendaArtist
+      ? '<option value="all">Todos los artistas</option>'
+      : '<option value="">Sin asignar</option>';
+    select.innerHTML = base + names.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join('');
+    if ([...select.options].some((option) => option.value === current)) select.value = current;
+  });
+}
+
+async function loadArtists(options = {}) {
+  try {
+    const data = await apiAuthed('/artists');
+    state.artists.items = data.items ?? [];
+    state.artists.loaded = true;
+    renderArtists();
+    populateArtistOptions();
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  }
+}
+
+function renderArtists() {
+  if (!els.artistsGrid) return;
+  const items = state.artists.items;
+  els.artistsGrid.innerHTML = items.length
+    ? items.map((item) => `
+        <article class="card artist-card">
+          <span class="avatar-ring">${esc(initials(item.name))}</span>
+          <h3>${esc(item.name)}</h3>
+          <p class="muted small">${esc(item.specialty || 'Especialidad no indicada')}</p>
+          ${item.phone ? `<p class="mono small">${esc(item.phone)}</p>` : ''}
+          ${item.bio ? `<p class="muted small">${esc(item.bio)}</p>` : ''}
+          <span class="chip ${item.active ? 'ok' : 'neutral'}">${item.active ? 'Activo' : 'Inactivo'}</span>
+          <div class="artist-card-actions">
+            <button class="button ghost small" type="button" data-artist-edit="${item.id}">Editar</button>
+            <button class="button ghost small" type="button" data-artist-delete="${item.id}">Eliminar</button>
+          </div>
+        </article>`).join('')
+    : '<p class="muted small">Todavía no hay artistas registrados. Agregá el equipo del estudio cuando quieras.</p>';
+}
+
+function openArtistForm(item) {
+  const form = document.getElementById('artist-form');
+  showFormError('artist-error', '');
+  document.getElementById('artist-modal-title').textContent = item ? 'Editar artista' : 'Nuevo artista';
+  fillForm(form, item || { active: true });
+  form.dataset.id = item?.id || '';
+  openModal('artist-modal');
+}
+
+async function saveArtist(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = formValues(form);
+  const id = form.dataset.id;
+  const body = {
+    name: values.name,
+    specialty: values.specialty,
+    phone: values.phone,
+    bio: values.bio,
+    active: values.active,
+  };
+  try {
+    if (id) await apiAuthed(`/artists/${id}`, { method: 'PATCH', body });
+    else await apiAuthed('/artists', { method: 'POST', body });
+    closeModal('artist-modal');
+    toast(id ? 'Artista actualizado' : 'Artista creado');
+    await loadArtists({ silent: true });
+  } catch (error) {
+    showFormError('artist-error', error.message);
+  }
+}
+
+/* ---------- Catálogo flash ---------- */
+
+function openFlashForm(item) {
+  const form = document.getElementById('flash-form');
+  showFormError('flash-error', '');
+  document.getElementById('flash-modal-title').textContent = item ? 'Editar diseño' : 'Nuevo diseño';
+  fillForm(form, item || { category: 'clasico', price: 0, active: true });
+  form.dataset.id = item?.id || '';
+  openModal('flash-modal');
+}
+
+async function saveFlash(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = formValues(form);
+  const id = form.dataset.id;
+  const body = {
+    code: values.code,
+    name: values.name,
+    category: values.category,
+    price: Number(values.price) || 0,
+    size: values.size,
+    description: values.description,
+    imageUrl: values.imageUrl,
+    active: values.active,
+  };
+  try {
+    if (id) await apiAuthed(`/flash/${id}`, { method: 'PATCH', body });
+    else await apiAuthed('/flash', { method: 'POST', body });
+    closeModal('flash-modal');
+    toast(id ? 'Diseño actualizado' : 'Diseño agregado al catálogo');
+    await loadFlash({ silent: true });
+  } catch (error) {
+    showFormError('flash-error', error.message);
+  }
+}
+
+/* ---------- Agenda (citas y cotizaciones) ---------- */
+
+function openAppointmentForm(item) {
+  const form = document.getElementById('appointment-form');
+  showFormError('appointment-error', '');
+  document.getElementById('appointment-modal-title').textContent = 'Editar cita';
+  populateArtistOptions();
+  fillForm(form, {
+    ...(item || {}),
+    at: toLocalInput(item?.at),
+    price: item?.price ?? 0,
+    deposit: item?.deposit ?? 0,
+  });
+  form.dataset.id = item?.id || '';
+  openModal('appointment-modal');
+}
+
+async function saveAppointment(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = formValues(form);
+  const id = form.dataset.id;
+  const body = {
+    client: values.client,
+    phone: values.phone,
+    design: values.design,
+    zone: values.zone,
+    artist: values.artist,
+    at: fromLocalInput(values.at),
+    price: Number(values.price) || 0,
+    deposit: Number(values.deposit) || 0,
+    paid: values.paid,
+    status: values.status,
+    note: values.note,
+  };
+  try {
+    if (id) await apiAuthed(`/appointments/${id}`, { method: 'PATCH', body });
+    else await apiAuthed('/appointments', { method: 'POST', body });
+    closeModal('appointment-modal');
+    closeDrawer();
+    toast(id ? 'Cita actualizada' : 'Cita creada');
+    await loadAppointments({ silent: true });
+  } catch (error) {
+    showFormError('appointment-error', error.message);
+  }
+}
+
+async function changeAppointmentStatus(id, status, message) {
+  try {
+    await apiAuthed(`/appointments/${id}`, { method: 'PATCH', body: { status } });
+    closeDrawer();
+    toast(message);
+    await loadAppointments({ silent: true });
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+/* ---------- Proveedor de IA ---------- */
+
+function applyAiSettings(settings) {
+  if (!settings) return;
+  state.ai.settings = settings;
+  if (els.aiProvider && [...els.aiProvider.options].some((o) => o.value === settings.provider)) {
+    els.aiProvider.value = settings.provider;
+  }
+  const models = state.ai.models?.length
+    ? state.ai.models
+    : (settings.presets?.find((preset) => preset.id === settings.provider)?.models ?? []);
+  renderAiModelOptions(models, settings.model);
+  if (els.aiApiKey && document.activeElement !== els.aiApiKey) {
+    els.aiApiKey.value = '';
+    els.aiApiKey.placeholder = settings.hasApiKey ? 'Key guardada · pegá otra para reemplazarla' : 'Pegá tu token aquí…';
+  }
+  const ok = settings.lastTestOk;
+  els.aiStatus.className = `chip ${ok === true ? 'ok' : ok === false ? 'error' : 'neutral'}`;
+  els.aiStatus.textContent = ok === true
+    ? `Activo · ${settings.model}`
+    : ok === false ? 'La key no responde' : 'Sin verificar';
+  if (els.aiHint) {
+    els.aiHint.textContent = settings.lastError
+      ? `Último error: ${settings.lastError}`
+      : settings.hasApiKey
+        ? `Proveedor activo: ${settings.providerLabel}. Los cambios se aplican sin reiniciar.`
+        : 'Cargá una API key para habilitar las respuestas del bot.';
+  }
+}
+
+function renderAiModelOptions(models, selected) {
+  if (!els.aiModel) return;
+  const list = models?.length ? models : [];
+  els.aiModel.innerHTML = list.length
+    ? list.map((model) => `<option value="${esc(model)}">${esc(model)}</option>`).join('')
+    : '<option value="">Sin modelos disponibles</option>';
+  if (selected && list.includes(selected)) els.aiModel.value = selected;
+}
+
+async function loadAiModels(options = {}) {
+  const provider = els.aiProvider.value;
+  const apiKey = els.aiApiKey.value.trim();
+  if (!provider) return;
+  if (!options.silent) {
+    renderAiModelOptions([], '');
+    els.aiModel.innerHTML = '<option value="">Consultando modelos…</option>';
+  }
+  try {
+    const result = await apiAuthed(
+      `/ai/models?provider=${encodeURIComponent(provider)}${apiKey ? `&apiKey=${encodeURIComponent(apiKey)}` : ''}`,
+    );
+    state.ai.models = result.models ?? [];
+    const current = state.ai.settings?.provider === provider ? state.ai.settings.model : undefined;
+    renderAiModelOptions(state.ai.models, current || state.ai.models[0]);
+    if (result.error && !options.silent) {
+      els.aiHint.textContent = `No se pudieron consultar los modelos: ${result.error}. Se muestran los modelos sugeridos.`;
+    }
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  }
+}
+
+async function testAi(button) {
+  const payload = {
+    provider: els.aiProvider.value,
+    model: els.aiModel.value,
+  };
+  if (els.aiApiKey.value.trim()) payload.apiKey = els.aiApiKey.value.trim();
+  try {
+    await withBusy(button, async () => {
+      const result = await apiAuthed('/ai/test', { method: 'POST', body: payload });
+      els.aiStatus.className = `chip ${result.ok ? 'ok' : 'error'}`;
+      els.aiStatus.textContent = result.ok ? 'Conexión correcta' : 'La key no responde';
+      els.aiHint.textContent = result.ok
+        ? `El proveedor responde y el modelo ${payload.model} está disponible (${result.models.length} modelo/s).`
+        : result.error || 'No se pudo conectar con el proveedor.';
+      if (result.models?.length) {
+        state.ai.models = result.models;
+        renderAiModelOptions(result.models, payload.model);
+      }
+    });
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+async function saveAi(event) {
+  event.preventDefault();
+  const payload = {
+    provider: els.aiProvider.value,
+    model: els.aiModel.value,
+  };
+  if (els.aiApiKey.value.trim()) payload.apiKey = els.aiApiKey.value.trim();
+  if (!payload.model) {
+    toast('Elegí un modelo', 'error');
+    return;
+  }
+  try {
+    await withBusy(els.aiSave, async () => {
+      const settings = await apiAuthed('/ai', { method: 'PUT', body: payload });
+      const result = await apiAuthed('/ai/test', { method: 'POST', body: {} });
+      applyAiSettings({ ...settings, lastTestOk: result.ok, lastTestAt: new Date().toISOString(), lastError: result.error });
+      toast(result.ok ? 'Proveedor de IA activado' : 'Guardado, pero la prueba falló', result.ok ? 'success' : 'error');
+    });
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+/* ---------- Usuarios del panel ---------- */
+
+async function loadUsers(options = {}) {
+  try {
+    const data = await apiAuthed('/users');
+    state.users.items = data.items ?? [];
+    state.users.loaded = true;
+    renderUsers();
+  } catch (error) {
+    if (!options.silent) handleError(error);
+  }
+}
+
+function renderUsers() {
+  if (!els.usersList) return;
+  const items = state.users.items;
+  els.usersList.innerHTML = items.length
+    ? items.map((user) => `
+        <div class="user-row">
+          <div class="user-row-main">
+            <span class="mini-avatar">${esc(initials(user.fullName || user.username))}</span>
+            <div>
+              <strong>${esc(user.fullName || user.username)}</strong>
+              <div class="user-row-meta">@${esc(user.username)} · ${esc(user.role)}</div>
+            </div>
+          </div>
+          <div class="actions">
+            <span class="chip ${user.active === false ? 'error' : 'ok'}">${user.active === false ? 'Inactivo' : 'Activo'}</span>
+            <button class="button ghost small" type="button" data-user-password="${user.id}">Cambiar clave</button>
+            <button class="button ghost small" type="button" data-user-toggle="${user.id}" data-active="${user.active !== false}">${user.active === false ? 'Activar' : 'Desactivar'}</button>
+          </div>
+        </div>`).join('')
+    : '<div class="empty-mini">No hay usuarios cargados.</div>';
+  // El listado público no expone `active`; lo asumimos activo salvo respuesta explícita.
+}
+
+async function saveUser(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = formValues(form);
+  try {
+    await apiAuthed('/users', {
+      method: 'POST',
+      body: {
+        username: values.username,
+        fullName: values.fullName,
+        password: values.password,
+        role: values.role,
+      },
+    });
+    closeModal('user-modal');
+    form.reset();
+    toast('Usuario creado');
+    await loadUsers({ silent: true });
+  } catch (error) {
+    showFormError('user-error', error.message);
+  }
+}
+
 function bindEvents() {
   els.loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const token = els.loginToken.value.trim();
-    if (!token) return;
+    const username = els.loginUsername.value.trim();
+    const password = els.loginPassword.value;
+    if (!username || !password) return;
 
     els.loginSubmit.disabled = true;
     els.loginSubmit.textContent = 'Verificando…';
     els.loginError.hidden = true;
 
-    state.token = token;
     try {
+      await api('/auth/login', {
+        method: 'POST',
+        body: { username, password },
+      });
       const overview = await api('/overview');
-      storeToken(token, els.loginRemember.checked);
+      els.loginPassword.value = '';
       showApp(overview);
       toast('Sesión iniciada');
     } catch (error) {
-      state.token = '';
       els.loginError.textContent =
         error.status === 401
-          ? 'Token inválido. Revisá el valor de ADMIN_TOKEN en el archivo .env.'
+          ? 'Usuario o contraseña incorrectos.'
           : error.message || 'No se pudo iniciar sesión.';
       els.loginError.hidden = false;
     } finally {
@@ -2385,10 +2828,14 @@ function bindEvents() {
     }
   });
   document.getElementById('drawer-confirm').addEventListener('click', () => {
-    const item = APPOINTMENTS.find((entry) => entry.code === state.agenda.selected);
-    if (item) item.status = 'confirmada';
-    closeDrawer();
-    toast('Cita confirmada y sincronizada con Notion');
+    const item = state.agenda.items.find((entry) => entry.code === state.agenda.selected);
+    if (!item) return;
+    const isQuote = item.status === 'cotizacion';
+    void changeAppointmentStatus(
+      item.id,
+      'confirmada',
+      isQuote ? 'Cotización aprobada y convertida en cita' : 'Cita confirmada',
+    );
   });
   document.getElementById('drawer-remind').addEventListener('click', () => {
     toast('Recordatorio enviado por WhatsApp');
@@ -2397,8 +2844,21 @@ function bindEvents() {
     closeDrawer();
     switchTab('conversations');
   });
-  document.getElementById('agenda-new').addEventListener('click', () => {
-    toast('La alta de citas se hace desde el flujo de WhatsApp', 'success');
+  document.getElementById('drawer-edit').addEventListener('click', () => {
+    const item = state.agenda.items.find((entry) => entry.code === state.agenda.selected);
+    if (item) openAppointmentForm(item);
+  });
+  document.getElementById('drawer-delete').addEventListener('click', async () => {
+    const item = state.agenda.items.find((entry) => entry.code === state.agenda.selected);
+    if (!item || !window.confirm(`¿Eliminar ${item.code}?`)) return;
+    try {
+      await apiAuthed(`/appointments/${item.id}`, { method: 'DELETE' });
+      closeDrawer();
+      toast('Registro eliminado');
+      await loadAppointments({ silent: true });
+    } catch (error) {
+      handleError(error);
+    }
   });
   document.getElementById('agenda-export').addEventListener('click', () => {
     toast('Exportación disponible cuando se conecte la agenda de Notion');
@@ -2419,9 +2879,106 @@ function bindEvents() {
     });
   });
 
-  els.refreshOverview.addEventListener('click', () =>
-    loadOverview({ silent: false }),
-  );
+  /* Gestiones (artistas, catálogo, usuarios) y proveedor de IA */
+  document.getElementById('artist-new').addEventListener('click', () => openArtistForm());
+  document.getElementById('flash-new').addEventListener('click', () => openFlashForm());
+  els.openUserModal.addEventListener('click', () => {
+    showFormError('user-error', '');
+    document.getElementById('user-form').reset();
+    openModal('user-modal');
+  });
+
+  document.addEventListener('click', (event) => {
+    const closeButton = event.target.closest('[data-close-modal]');
+    if (closeButton) {
+      closeModal(closeButton.dataset.closeModal);
+      return;
+    }
+    if (event.target.classList.contains('modal-backdrop')) {
+      closeAllModals();
+      return;
+    }
+
+    const artistEdit = event.target.closest('[data-artist-edit]');
+    if (artistEdit) {
+      openArtistForm(state.artists.items.find((item) => item.id === Number(artistEdit.dataset.artistEdit)));
+      return;
+    }
+    const artistDelete = event.target.closest('[data-artist-delete]');
+    if (artistDelete) {
+      const id = Number(artistDelete.dataset.artistDelete);
+      if (!window.confirm('¿Eliminar este artista?')) return;
+      void apiAuthed(`/artists/${id}`, { method: 'DELETE' })
+        .then(() => loadArtists({ silent: true }))
+        .then(() => toast('Artista eliminado'))
+        .catch(handleError);
+      return;
+    }
+    const flashEdit = event.target.closest('[data-flash-edit]');
+    if (flashEdit) {
+      openFlashForm(state.flash.items.find((item) => item.id === Number(flashEdit.dataset.flashEdit)));
+      return;
+    }
+    const flashDelete = event.target.closest('[data-flash-delete]');
+    if (flashDelete) {
+      const id = Number(flashDelete.dataset.flashDelete);
+      if (!window.confirm('¿Eliminar este diseño del catálogo?')) return;
+      void apiAuthed(`/flash/${id}`, { method: 'DELETE' })
+        .then(() => loadFlash({ silent: true }))
+        .then(() => toast('Diseño eliminado'))
+        .catch(handleError);
+      return;
+    }
+    const userToggle = event.target.closest('[data-user-toggle]');
+    if (userToggle) {
+      const id = Number(userToggle.dataset.userToggle);
+      const active = userToggle.dataset.active === 'true';
+      void apiAuthed(`/users/${id}`, { method: 'PATCH', body: { active: !active } })
+        .then(() => loadUsers({ silent: true }))
+        .catch(handleError);
+      return;
+    }
+    const userPassword = event.target.closest('[data-user-password]');
+    if (userPassword) {
+      const id = Number(userPassword.dataset.userPassword);
+      const password = window.prompt('Nueva contraseña (mínimo 8 caracteres):');
+      if (!password) return;
+      void apiAuthed(`/users/${id}`, { method: 'PATCH', body: { password } })
+        .then(() => toast('Contraseña actualizada'))
+        .catch(handleError);
+    }
+  });
+
+  document.getElementById('artist-form').addEventListener('submit', (event) => {
+    saveArtist(event).catch(handleError);
+  });
+  document.getElementById('flash-form').addEventListener('submit', (event) => {
+    saveFlash(event).catch(handleError);
+  });
+  document.getElementById('appointment-form').addEventListener('submit', (event) => {
+    saveAppointment(event).catch(handleError);
+  });
+  document.getElementById('user-form').addEventListener('submit', (event) => {
+    saveUser(event).catch(handleError);
+  });
+
+  els.aiProvider.addEventListener('change', () => {
+    state.ai.models = [];
+    void loadAiModels();
+  });
+  els.aiApiKey.addEventListener('change', () => {
+    void loadAiModels({ silent: false });
+  });
+  els.aiKeyToggle.addEventListener('click', () => {
+    els.aiApiKey.type = els.aiApiKey.type === 'password' ? 'text' : 'password';
+  });
+  els.aiTest.addEventListener('click', () => {
+    testAi(els.aiTest).catch(handleError);
+  });
+  els.aiForm.addEventListener('submit', (event) => {
+    saveAi(event).catch(handleError);
+  });
+
   els.refreshConversations.addEventListener('click', () =>
     loadConversations({ silent: false }),
   );
@@ -2455,8 +3012,6 @@ function bindEvents() {
   els.goConversations.addEventListener('click', () =>
     switchTab('conversations'),
   );
-  els.goSystem.addEventListener('click', () => switchTab('system'));
-
   let searchTimer;
   els.conversationSearch.addEventListener('input', () => {
     clearTimeout(searchTimer);
@@ -2539,8 +3094,8 @@ function bindEvents() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible' || !state.inApp) return;
-    if (state.tab === 'overview') {
-      void loadOverview({ silent: true });
+    if (state.tab === 'system') {
+      void loadSystem({ silent: true });
     } else if (state.tab === 'whatsapp') {
       void loadWhatsApp({ silent: true });
     }
@@ -2553,27 +3108,17 @@ async function init() {
   renderBento();
   renderFlash();
 
-  const storedToken = readStoredToken();
-  if (!storedToken) {
-    showLogin();
-    return;
-  }
-
-  els.loginRemember.checked = Boolean(
-    safeGet(window.localStorage, TOKEN_KEY),
-  );
-  state.token = storedToken;
   els.loginSubmit.disabled = true;
   els.loginSubmit.textContent = 'Verificando…';
 
   try {
+    await api('/auth/me');
     const overview = await api('/overview');
     showApp(overview);
   } catch (error) {
-    clearStoredToken();
     showLogin(
       error.status === 401
-        ? 'El token guardado ya no es válido. Ingresalo de nuevo.'
+        ? 'Tu sesión venció. Ingresá de nuevo.'
         : error.message,
     );
   } finally {

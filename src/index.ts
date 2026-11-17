@@ -6,7 +6,9 @@ import { createLogger, type Logger } from './logger.js';
 import { closeDatabase, openDatabase, type Db } from './db/database.js';
 import { createRepositories, type Repositories } from './db/repositories/index.js';
 import { WahaClient } from './clients/waha.js';
-import { createAiClient } from './clients/ai-factory.js';
+import { DynamicAiClient } from './clients/dynamic-ai.js';
+import { AiSettingsService } from './services/ai-settings-service.js';
+import { AdminAuthService } from './services/admin-auth-service.js';
 import { SummaryService } from './services/summary-service.js';
 import { QuoteService } from './services/quote-service.js';
 import { SchedulingService } from './services/scheduling-service.js';
@@ -133,8 +135,14 @@ async function main(): Promise<void> {
     );
   }
 
+  const aiSettings = new AiSettingsService(config, repos, logger);
+  // El proveedor activo se resuelve en cada llamada: el panel puede cambiarlo
+  // sin reiniciar el proceso.
+  const ollama = new DynamicAiClient(() => aiSettings.createClient());
+  const adminAuth = new AdminAuthService(config, repos, logger);
+  adminAuth.seed();
+
   const waha = new WahaClient(config.waha);
-  const ollama = createAiClient(config);
   const health = new HealthService(config, db, repos, waha, ollama);
   const summaries = new SummaryService(config, repos, ollama, logger);
   const quotes = new QuoteService(config, repos, waha, logger);
@@ -170,6 +178,8 @@ async function main(): Promise<void> {
     health,
     tattoo,
     notion,
+    auth: adminAuth,
+    aiSettings,
     worker,
     logger,
     publicDir: resolve(process.cwd(), 'public'),

@@ -1458,3 +1458,160 @@ body {
     min-width: 720px;
   }
 }
+
+/* ============================================================
+   Panel · modales, gestiones y proveedor de IA
+   ============================================================ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  width: min(100%, 560px);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.modal textarea {
+  resize: vertical;
+}
+
+.key-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.key-input input {
+  flex: 1;
+}
+
+.form-error {
+  margin: 0;
+  color: var(--red-text);
+  font-size: 0.82rem;
+}
+
+.ai-panel {
+  margin-bottom: 22px;
+  border-color: var(--gold-soft);
+}
+
+.ai-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.ai-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+}
+
+.users-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.user-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.user-row-main strong {
+  font-size: 0.9rem;
+}
+
+.user-row-meta {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-family: var(--mono);
+}
+
+.artist-card-actions,
+.flash-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.empty-mini {
+  padding: 14px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 900px) {
+  .ai-form,
+  .form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

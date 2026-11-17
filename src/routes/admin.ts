@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import type { AppConfig } from '../config.js';
 import type { Repositories } from '../db/repositories/index.js';
@@ -6,6 +6,8 @@ import type { HealthService } from '../services/health-service.js';
 import type { ConversationService } from '../services/conversation-service.js';
 import type { NotionSettingsService } from '../services/notion-settings-service.js';
 import type { TattooSettingsService } from '../services/tattoo-settings-service.js';
+import type { AdminAuthService } from '../services/admin-auth-service.js';
+import type { AiSettingsService } from '../services/ai-settings-service.js';
 import type { InboundWorker } from '../services/worker.js';
 import type {
   ConversationListItem,
@@ -24,6 +26,8 @@ export interface AdminRouterDeps {
   conversations: ConversationService;
   tattoo: TattooSettingsService;
   notion: NotionSettingsService;
+  auth: AdminAuthService;
+  aiSettings: AiSettingsService;
   waha: WahaClient;
   worker?: InboundWorker;
 }
@@ -70,6 +74,93 @@ const limitQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
+const adminUserCreateSchema = z.object({
+  username: z.string().trim().min(3).max(40),
+  password: z.string().min(8).max(200),
+  fullName: z.string().trim().max(120).optional(),
+  role: z.enum(['admin', 'user']).default('user'),
+});
+
+const adminUserPatchSchema = z
+  .object({
+    fullName: z.string().trim().max(120).optional(),
+    role: z.enum(['admin', 'user']).optional(),
+    active: z.boolean().optional(),
+    password: z.string().min(8).max(200).optional(),
+  })
+  .refine(
+    (value) =>
+      value.fullName !== undefined ||
+      value.role !== undefined ||
+      value.active !== undefined ||
+      value.password !== undefined,
+    'Indicá al menos un campo para actualizar',
+  );
+
+const artistSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  specialty: z.string().trim().max(120).optional(),
+  phone: z.string().trim().max(40).optional(),
+  bio: z.string().trim().max(1000).optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.coerce.number().int().optional(),
+});
+
+const flashSchema = z.object({
+  code: z.string().trim().min(1).max(40),
+  name: z.string().trim().min(1).max(120),
+  category: z.string().trim().max(40).optional(),
+  price: z.coerce.number().int().min(0).optional(),
+  size: z.string().trim().max(60).optional(),
+  description: z.string().trim().max(1000).optional(),
+  imageUrl: z.string().trim().max(500).optional(),
+  active: z.boolean().optional(),
+});
+
+const APPOINTMENT_STATUSES = [
+  'cotizacion',
+  'pendiente',
+  'confirmada',
+  'completada',
+  'cancelada',
+] as const;
+
+const appointmentSchema = z.object({
+  client: z.string().trim().min(1).max(120),
+  phone: z.string().trim().max(40).optional(),
+  design: z.string().trim().max(200).optional(),
+  zone: z.string().trim().max(120).optional(),
+  artist: z.string().trim().max(120).optional(),
+  at: z.string().trim().min(1),
+  price: z.coerce.number().int().min(0).optional(),
+  deposit: z.coerce.number().int().min(0).optional(),
+  paid: z.boolean().optional(),
+  status: z.enum(APPOINTMENT_STATUSES).optional(),
+  note: z.string().trim().max(2000).optional(),
+});
+
+const appointmentPatchSchema = appointmentSchema.partial().refine(
+  (value) => Object.keys(value).length > 0,
+  'Indicá al menos un campo para actualizar',
+);
+
+const appointmentQuerySchema = z.object({
+  search: z.string().max(200).default(''),
+  status: z.enum(['all', ...APPOINTMENT_STATUSES]).default('all'),
+  artist: z.string().max(120).default('all'),
+  from: z.string().max(40).optional(),
+  to: z.string().max(40).optional(),
+});
+
+const aiConfigureSchema = z.object({
+  provider: z.string().trim().min(1).max(40),
+  model: z.string().trim().min(1).max(120),
+  apiKey: z.string().trim().max(500).optional(),
+  baseUrl: z.string().trim().url().max(500).optional(),
+});
+
+const aiTestSchema = aiConfigureSchema.partial();
+
 function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
   if (!result.success) {
@@ -78,8 +169,8 @@ function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
   return result.data;
 }
 
-function parseId(raw: string | undefined): number {
-  const value = Number(raw);
+function parseId(raw: string | string[] | undefined): number {
+  const value = Number(Array.isArray(raw) ? raw[0] : raw);
   if (!Number.isInteger(value) || value <= 0) {
     throw new ValidationError('Identificador inválido');
   }
@@ -151,8 +242,18 @@ function mapConversationItem(item: ConversationListItem) {
 
 export function createAdminRouter(deps: AdminRouterDeps): Router {
   const router = Router();
-  const { config, repos, health, conversations, tattoo, notion, waha, worker } =
-    deps;
+  const {
+    config,
+    repos,
+    health,
+    conversations,
+    tattoo,
+    notion,
+    auth,
+    aiSettings,
+    waha,
+    worker,
+  } = deps;
 
   router.get('/overview', async (_req, res) => {
     const [snapshot, stats] = await Promise.all([
@@ -165,8 +266,8 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       uptimeSeconds: Math.round(process.uptime()),
       bot: {
         name: config.bot.name,
-        aiProvider: config.ai.provider,
-        model: config.ollama.model,
+        aiProvider: aiSettings.provider,
+        model: aiSettings.model,
         timeZone: config.bot.timeZone,
         enabled: config.bot.enabled,
         historyMaxMessages: config.bot.historyMaxMessages,
@@ -648,9 +749,10 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       worker: worker?.snapshot() ?? null,
       events,
       failedJobs,
+      ai: aiSettings.snapshot(),
       settings: {
-        aiProvider: config.ai.provider,
-        model: config.ollama.model,
+        aiProvider: aiSettings.provider,
+        model: aiSettings.model,
         botName: config.bot.name,
         timeZone: config.bot.timeZone,
         historyMaxMessages: config.bot.historyMaxMessages,
@@ -667,6 +769,259 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
         notionAgendaReady: notion.snapshot().ready,
       },
     });
+  });
+
+  /* ---------- Usuarios del panel (contraseña por usuario) ---------- */
+
+  const adminOnly: RequestHandler = (req, res, next) => {
+    if (req.adminUser?.role !== 'admin') {
+      res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'Se requiere perfil de administrador.' },
+      });
+      return;
+    }
+    next();
+  };
+
+  router.get('/users', adminOnly, (_req, res) => {
+    res.json({ items: auth.listUsers() });
+  });
+
+  router.post('/users', adminOnly, (req, res) => {
+    const body = parseOrThrow(adminUserCreateSchema, req.body);
+    const user = auth.createUser(body);
+    res.status(201).json({ ok: true, user });
+  });
+
+  router.patch('/users/:id', adminOnly, (req, res) => {
+    const id = parseId(req.params.id);
+    const body = parseOrThrow(adminUserPatchSchema, req.body);
+    const user = auth.updateUser(id, body);
+    if (!user) throw new NotFoundError('Usuario no encontrado');
+    res.json({ ok: true, user });
+  });
+
+  router.delete('/users/:id', adminOnly, (req, res) => {
+    const id = parseId(req.params.id);
+    if (!auth.deleteUser(id)) throw new NotFoundError('Usuario no encontrado');
+    res.json({ ok: true });
+  });
+
+  /* ---------- Proveedor de IA (gestor dinámico) ---------- */
+
+  router.get('/ai', (_req, res) => {
+    res.json({ ok: true, ...aiSettings.snapshot() });
+  });
+
+  router.get('/ai/models', async (req, res, next) => {
+    try {
+      const input = parseOrThrow(aiTestSchema, req.query);
+      const result = await aiSettings.listModels(input);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/ai/test', async (req, res, next) => {
+    try {
+      const input = parseOrThrow(aiTestSchema, req.body ?? {});
+      const result = await aiSettings.test(input);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/ai', adminOnly, (req, res) => {
+    const body = parseOrThrow(aiConfigureSchema, req.body);
+    const settings = aiSettings.configure(body);
+    res.json({ ok: true, ...settings });
+  });
+
+  /* ---------- Artistas (CRUD) ---------- */
+
+  function mapArtist(row: {
+    id: number;
+    name: string;
+    specialty: string;
+    phone: string;
+    bio: string;
+    active: number;
+    sort_order: number;
+    created_at: string;
+    updated_at: string;
+  }) {
+    return {
+      id: row.id,
+      name: row.name,
+      specialty: row.specialty,
+      phone: row.phone,
+      bio: row.bio,
+      active: row.active === 1,
+      sortOrder: row.sort_order,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  router.get('/artists', (req, res) => {
+    const includeInactive = req.query.all !== '0';
+    res.json({ items: repos.artists.list(includeInactive).map(mapArtist) });
+  });
+
+  router.post('/artists', (req, res) => {
+    const body = parseOrThrow(artistSchema, req.body);
+    const row = repos.artists.create(body);
+    res.status(201).json({ ok: true, artist: mapArtist(row) });
+  });
+
+  router.patch('/artists/:id', (req, res) => {
+    const id = parseId(req.params.id);
+    const body = parseOrThrow(artistSchema.partial(), req.body);
+    const row = repos.artists.update(id, body);
+    if (!row) throw new NotFoundError('Artista no encontrado');
+    res.json({ ok: true, artist: mapArtist(row) });
+  });
+
+  router.delete('/artists/:id', (req, res) => {
+    const id = parseId(req.params.id);
+    if (!repos.artists.delete(id)) throw new NotFoundError('Artista no encontrado');
+    res.json({ ok: true });
+  });
+
+  /* ---------- Catálogo flash (CRUD) ---------- */
+
+  function mapFlash(row: {
+    id: number;
+    code: string;
+    name: string;
+    category: string;
+    price: number;
+    size: string;
+    description: string;
+    image_url: string | null;
+    active: number;
+    created_at: string;
+    updated_at: string;
+  }) {
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      category: row.category,
+      price: row.price,
+      size: row.size,
+      description: row.description,
+      imageUrl: row.image_url,
+      active: row.active === 1,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  router.get('/flash', (req, res) => {
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    res.json({ items: repos.flash.list(category).map(mapFlash) });
+  });
+
+  router.post('/flash', (req, res) => {
+    const body = parseOrThrow(flashSchema, req.body);
+    if (repos.flash.getByCode(body.code)) {
+      throw new ValidationError('Ese código ya existe en el catálogo.');
+    }
+    const row = repos.flash.create(body);
+    res.status(201).json({ ok: true, item: mapFlash(row) });
+  });
+
+  router.patch('/flash/:id', (req, res) => {
+    const id = parseId(req.params.id);
+    const body = parseOrThrow(flashSchema.partial(), req.body);
+    const row = repos.flash.update(id, body);
+    if (!row) throw new NotFoundError('Diseño no encontrado');
+    res.json({ ok: true, item: mapFlash(row) });
+  });
+
+  router.delete('/flash/:id', (req, res) => {
+    const id = parseId(req.params.id);
+    if (!repos.flash.delete(id)) throw new NotFoundError('Diseño no encontrado');
+    res.json({ ok: true });
+  });
+
+  /* ---------- Agenda unificada (citas y cotizaciones) ---------- */
+
+  function mapAppointment(row: {
+    id: number;
+    code: string;
+    client: string;
+    phone: string;
+    design: string;
+    zone: string;
+    artist: string;
+    at: string;
+    price: number;
+    deposit: number;
+    paid: number;
+    status: string;
+    note: string;
+    created_at: string;
+    updated_at: string;
+  }) {
+    return {
+      id: row.id,
+      code: row.code,
+      client: row.client,
+      phone: row.phone,
+      design: row.design,
+      zone: row.zone,
+      artist: row.artist,
+      at: row.at,
+      price: row.price,
+      deposit: row.deposit,
+      paid: row.paid === 1,
+      status: row.status,
+      note: row.note,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  router.get('/appointments', (req, res) => {
+    const query = parseOrThrow(appointmentQuerySchema, req.query);
+    const items = repos.appointments.list({
+      search: query.search,
+      status: query.status,
+      artist: query.artist,
+      from: query.from,
+      to: query.to,
+    });
+    res.json({ items: items.map(mapAppointment) });
+  });
+
+  router.post('/appointments', (req, res) => {
+    const body = parseOrThrow(appointmentSchema, req.body);
+    if (Number.isNaN(new Date(body.at).getTime())) {
+      throw new ValidationError('La fecha y hora de la cita no son válidas.');
+    }
+    const row = repos.appointments.create(body);
+    res.status(201).json({ ok: true, appointment: mapAppointment(row) });
+  });
+
+  router.patch('/appointments/:id', (req, res) => {
+    const id = parseId(req.params.id);
+    const body = parseOrThrow(appointmentPatchSchema, req.body);
+    if (body.at && Number.isNaN(new Date(body.at).getTime())) {
+      throw new ValidationError('La fecha y hora de la cita no son válidas.');
+    }
+    const row = repos.appointments.update(id, body);
+    if (!row) throw new NotFoundError('Cita no encontrada');
+    res.json({ ok: true, appointment: mapAppointment(row) });
+  });
+
+  router.delete('/appointments/:id', (req, res) => {
+    const id = parseId(req.params.id);
+    if (!repos.appointments.delete(id)) throw new NotFoundError('Cita no encontrada');
+    res.json({ ok: true });
   });
 
   return router;

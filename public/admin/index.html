@@ -45,26 +45,34 @@
         <p class="eyebrow">Panel privado · acceso restringido</p>
         <h1>Estudio de Tatuajes</h1>
         <p class="muted">
-          Agenda, cotizaciones y flujo de WhatsApp. Ingresá el
-          <code>ADMIN_TOKEN</code> definido en tu archivo <code>.env</code>.
+          Agenda, cotizaciones y flujo de WhatsApp. Ingresá con el usuario y la
+          contraseña que te asignó el administrador del sistema.
         </p>
 
         <label class="field">
-          <span>Token de administración</span>
+          <span>Usuario</span>
           <input
-            id="login-token"
-            type="password"
-            name="token"
-            placeholder="Pegá el token aquí…"
-            autocomplete="current-password"
+            id="login-username"
+            type="text"
+            name="username"
+            placeholder="Tu usuario"
+            autocomplete="username"
             spellcheck="false"
             required
           />
         </label>
 
-        <label class="checkbox">
-          <input id="login-remember" type="checkbox" />
-          <span>Recordar en este dispositivo</span>
+        <label class="field">
+          <span>Contraseña</span>
+          <input
+            id="login-password"
+            type="password"
+            name="password"
+            placeholder="Tu contraseña"
+            autocomplete="current-password"
+            spellcheck="false"
+            required
+          />
         </label>
 
         <button id="login-submit" class="button primary wide" type="submit">
@@ -74,8 +82,8 @@
         <p id="login-error" class="form-error" role="alert" hidden></p>
 
         <p class="login-help">
-          Panel de WhatsApp AI Bot. El token se guarda solo en este navegador.
-          Para cerrar la sesión usá “Salir”.
+          Panel de WhatsApp AI Bot. La sesión se mantiene en una cookie segura de
+          este navegador. Para cerrarla usá “Salir”.
         </p>
       </form>
     </div>
@@ -102,11 +110,6 @@
             <span>Agenda</span>
             <span class="nav-count" id="nav-count-agenda">06</span>
           </button>
-          <button class="nav-item" type="button" role="tab" data-tab="agenda" data-agenda-filter="cotizacion" aria-controls="tab-agenda" aria-selected="false">
-            <svg class="icon" aria-hidden="true"><use href="#i-ticket"/></svg>
-            <span>Cotizaciones</span>
-            <span class="nav-count" id="nav-count-quotes">12</span>
-          </button>
           <button id="nav-conversations" class="nav-item" type="button" role="tab" data-tab="conversations" aria-controls="tab-conversations" aria-selected="false">
             <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
             <span>Conversaciones</span>
@@ -129,10 +132,6 @@
           </button>
 
           <p class="nav-group-label" role="presentation">Sistema</p>
-          <button id="nav-overview" class="nav-item" type="button" role="tab" data-tab="overview" aria-controls="tab-overview" aria-selected="false">
-            <svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>
-            <span>Resumen</span>
-          </button>
           <button id="nav-system" class="nav-item" type="button" role="tab" data-tab="system" aria-controls="tab-system" aria-selected="false">
             <svg class="icon" aria-hidden="true"><use href="#i-sliders"/></svg>
             <span>Sistema</span>
@@ -185,18 +184,15 @@
                 <button id="agenda-export" class="button ghost small" type="button">
                   <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg> Exportar
                 </button>
-                <button id="agenda-new" class="button primary small" type="button">
-                  <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg> Nueva cita
-                </button>
               </div>
             </div>
 
             <div class="kpi-strip" aria-label="Indicadores de la agenda">
-              <div class="kpi"><span class="kpi-label">Citas la semana</span><strong class="kpi-value">0</strong></div>
-              <div class="kpi"><span class="kpi-label">Por confirmar</span><strong class="kpi-value accent-gold">0</strong></div>
-              <div class="kpi"><span class="kpi-label">Cotizaciones abiertas</span><strong class="kpi-value">0</strong></div>
-              <div class="kpi"><span class="kpi-label">Depósitos cobrados</span><strong class="kpi-value">$0</strong></div>
-              <div class="kpi"><span class="kpi-label">Ocupación</span><strong class="kpi-value">0%</strong></div>
+              <div class="kpi"><span class="kpi-label">Citas la semana</span><strong class="kpi-value" id="kpi-week">0</strong></div>
+              <div class="kpi"><span class="kpi-label">Por confirmar</span><strong class="kpi-value accent-gold" id="kpi-pending">0</strong></div>
+              <div class="kpi"><span class="kpi-label">Cotizaciones abiertas</span><strong class="kpi-value" id="kpi-quotes">0</strong></div>
+              <div class="kpi"><span class="kpi-label">Depósitos cobrados</span><strong class="kpi-value" id="kpi-deposits">$0</strong></div>
+              <div class="kpi"><span class="kpi-label">Confirmadas</span><strong class="kpi-value" id="kpi-confirmed">0</strong></div>
             </div>
 
             <section class="card table-card">
@@ -263,41 +259,6 @@
               <section class="card mini-panel">
                 <div class="card-heading"><h3>Actividad del bot</h3><span class="muted small">en vivo</span></div>
                 <div id="bot-activity" class="timeline"></div>
-              </section>
-            </div>
-          </section>
-
-          <!-- ============ RESUMEN ============ -->
-          <section id="tab-overview" class="tab-panel" role="tabpanel" aria-labelledby="nav-overview" hidden>
-            <div class="page-head">
-              <div>
-                <p class="eyebrow">Sistema · resumen general</p>
-                <h1>Resumen general</h1>
-                <p class="muted page-sub">Estado del bot, dependencias y actividad reciente.</p>
-              </div>
-              <button id="refresh-overview" class="button ghost small" type="button">
-                <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Actualizar
-              </button>
-            </div>
-            <div id="stats-grid" class="stats-grid" aria-live="polite">
-              <div class="stat-card skeleton"></div><div class="stat-card skeleton"></div>
-              <div class="stat-card skeleton"></div><div class="stat-card skeleton"></div>
-            </div>
-            <div class="overview-grid">
-              <section class="card"><div class="card-heading"><h3>Dependencias</h3><span class="muted small">Se actualiza cada 20 s</span></div><div id="health-grid" class="health-grid"></div></section>
-              <section class="card"><div class="card-heading"><h3>Configuración efectiva</h3></div><dl id="bot-info" class="info-list"></dl></section>
-            </div>
-            <div class="overview-grid">
-              <section class="card"><div class="card-heading"><h3>Cola de mensajes</h3></div><div id="queue-info" class="queue-grid"></div></section>
-              <section class="card accent-card">
-                <div class="card-heading"><h3>Accesos rápidos</h3></div>
-                <p class="muted">Escaneá el QR para vincular WhatsApp y revisá el historial completo desde Conversaciones.</p>
-                <div class="quick-actions">
-                  <button id="go-whatsapp" class="button primary small" type="button">Conectar WhatsApp</button>
-                  <a id="waha-link" class="button ghost small" href="#" target="_blank" rel="noopener noreferrer">Panel de WAHA</a>
-                  <button id="go-conversations" class="button ghost small" type="button">Ver conversaciones</button>
-                  <button id="go-system" class="button ghost small" type="button">Estado del sistema</button>
-                </div>
               </section>
             </div>
           </section>
@@ -428,8 +389,9 @@
                 <h1>Artistas</h1>
                 <p class="muted page-sub">Carga, especialidad y disponibilidad de cada tatuador del estudio.</p>
               </div>
+              <button id="artist-new" class="button primary small" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg> Nuevo artista</button>
             </div>
-            <div class="artist-grid">
+            <div id="artists-grid" class="artist-grid">
               <p class="muted small">Todavía no hay artistas registrados. Agregá el equipo del estudio cuando quieras.</p>
             </div>
           </section>
@@ -442,6 +404,7 @@
                 <h1>Catálogo Flash</h1>
                 <p class="muted page-sub">Diseños listos para agendar. Grabados en tinta, precios fijos y tiempos estimados.</p>
               </div>
+              <button id="flash-new" class="button primary small" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg> Nuevo diseño</button>
             </div>
             <div class="flash-toolbar">
               <div class="status-filters" role="group" aria-label="Filtrar catálogo">
@@ -450,28 +413,206 @@
                 <button class="filter-chip" type="button" data-flash-filter="nautico">Náutico</button>
                 <button class="filter-chip" type="button" data-flash-filter="floral">Floral</button>
               </div>
-              <span class="muted small mono">0 diseños disponibles</span>
+              <span id="flash-count" class="muted small mono">0 diseños disponibles</span>
             </div>
             <div id="flash-grid" class="flash-grid"></div>
           </section>
 
-          <!-- ============ SISTEMA ============ -->
+          <!-- ============ SISTEMA (resumen + diagnóstico + proveedor de IA) ============ -->
           <section id="tab-system" class="tab-panel" role="tabpanel" aria-labelledby="nav-system" hidden>
             <div class="page-head">
-              <div><p class="eyebrow">Sistema · diagnóstico</p><h1>Sistema</h1><p class="muted page-sub">Salud de las dependencias, configuración y eventos recientes.</p></div>
+              <div><p class="eyebrow">Sistema · centro de control</p><h1>Sistema</h1><p class="muted page-sub">Proveedor de IA, estado del bot, dependencias, usuarios y actividad reciente.</p></div>
               <button id="refresh-system" class="button ghost small" type="button"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Actualizar</button>
+            </div>
+
+            <section class="card ai-panel">
+              <div class="card-heading">
+                <h3>Proveedor de IA</h3>
+                <span id="ai-status" class="chip neutral" aria-live="polite">Sin verificar</span>
+              </div>
+              <p class="muted small">Elegí el servicio y el modelo. La key se guarda de forma segura y se usa en caliente, sin reiniciar el bot.</p>
+              <form id="ai-form" class="ai-form">
+                <label class="field"><span>Proveedor</span>
+                  <select id="ai-provider" name="provider">
+                    <option value="groq">Groq</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="anthropic">Anthropic</option>
+                  </select>
+                </label>
+                <label class="field"><span>Modelo</span>
+                  <select id="ai-model" name="model"><option value="">Cargando modelos…</option></select>
+                </label>
+                <label class="field"><span>API Key / Token</span>
+                  <div class="key-input">
+                    <input id="ai-api-key" name="apiKey" type="password" placeholder="Pegá tu token aquí…" autocomplete="off" spellcheck="false" />
+                    <button id="ai-key-toggle" class="icon-button" type="button" title="Mostrar u ocultar la key" aria-label="Mostrar u ocultar la key">👁</button>
+                  </div>
+                </label>
+                <div class="ai-actions">
+                  <button id="ai-test" class="button ghost small" type="button">Probar conexión</button>
+                  <button id="ai-save" class="button primary small" type="submit">Probar y Activar</button>
+                </div>
+              </form>
+              <p id="ai-hint" class="muted small tattoo-hint" aria-live="polite"></p>
+            </section>
+
+            <div id="stats-grid" class="stats-grid" aria-live="polite">
+              <div class="stat-card skeleton"></div><div class="stat-card skeleton"></div>
+              <div class="stat-card skeleton"></div><div class="stat-card skeleton"></div>
+            </div>
+            <div class="overview-grid">
+              <section class="card"><div class="card-heading"><h3>Dependencias</h3><span class="muted small">Se actualiza cada 20 s</span></div><div id="health-grid" class="health-grid"></div></section>
+              <section class="card"><div class="card-heading"><h3>Configuración efectiva</h3></div><dl id="bot-info" class="info-list"></dl></section>
             </div>
             <div class="overview-grid">
               <section class="card"><div class="card-heading"><h3>Salud</h3></div><div id="system-health" class="health-grid"></div></section>
               <section class="card"><div class="card-heading"><h3>Configuración</h3></div><dl id="system-settings" class="info-list"></dl></section>
             </div>
             <div class="overview-grid">
+              <section class="card"><div class="card-heading"><h3>Cola de mensajes</h3></div><div id="queue-info" class="queue-grid"></div></section>
+              <section class="card accent-card">
+                <div class="card-heading"><h3>Accesos rápidos</h3></div>
+                <p class="muted">Escaneá el QR para vincular WhatsApp y revisá el historial completo desde Conversaciones.</p>
+                <div class="quick-actions">
+                  <button id="go-whatsapp" class="button primary small" type="button">Conectar WhatsApp</button>
+                  <a id="waha-link" class="button ghost small" href="#" target="_blank" rel="noopener noreferrer">Panel de WAHA</a>
+                  <button id="go-conversations" class="button ghost small" type="button">Ver conversaciones</button>
+                </div>
+              </section>
+            </div>
+            <div class="overview-grid">
               <section class="card"><div class="card-heading"><h3>Trabajos fallidos</h3><span id="failed-jobs-count" class="chip neutral">0</span></div><div id="failed-jobs" class="stack-list"></div></section>
               <section class="card"><div class="card-heading"><h3>Eventos recientes</h3><span class="muted small">Últimos 50 webhooks</span></div><div id="recent-events" class="stack-list scrollable"></div></section>
             </div>
+            <section class="card">
+              <div class="card-heading"><h3>Usuarios del panel</h3><button id="open-user-modal" class="button ghost small" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg> Nuevo usuario</button></div>
+              <p class="muted small">Cada persona ingresa con su propio usuario y contraseña. Podés cambiar la clave o desactivar el acceso cuando quieras.</p>
+              <div id="users-list" class="users-list"></div>
+            </section>
           </section>
         </main>
       </div>
+    </div>
+
+    <!--========== Modales de alta / edición ==========-->
+    <div id="artist-modal" class="modal-backdrop" hidden>
+      <form id="artist-form" class="modal" role="dialog" aria-modal="true" aria-labelledby="artist-modal-title">
+        <div class="modal-head">
+          <h2 id="artist-modal-title">Nuevo artista</h2>
+          <button class="icon-button" type="button" data-close-modal="artist-modal" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body">
+          <label class="field"><span>Nombre *</span><input name="name" required maxlength="120" placeholder="Nombre del tatuador" /></label>
+          <label class="field"><span>Especialidad</span><input name="specialty" maxlength="120" placeholder="Ej. Neo-traditional, dotwork…" /></label>
+          <label class="field"><span>Teléfono</span><input name="phone" maxlength="40" placeholder="300 123 4567" /></label>
+          <label class="field"><span>Bio</span><textarea name="bio" rows="3" maxlength="1000" placeholder="Descripción breve del artista"></textarea></label>
+          <label class="checkbox"><input name="active" type="checkbox" checked /><span>Activo</span></label>
+          <p class="form-error" id="artist-error" role="alert" hidden></p>
+        </div>
+        <div class="modal-actions">
+          <button class="button ghost small" type="button" data-close-modal="artist-modal">Cancelar</button>
+          <button class="button primary small" type="submit">Guardar artista</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="flash-modal" class="modal-backdrop" hidden>
+      <form id="flash-form" class="modal" role="dialog" aria-modal="true" aria-labelledby="flash-modal-title">
+        <div class="modal-head">
+          <h2 id="flash-modal-title">Nuevo diseño</h2>
+          <button class="icon-button" type="button" data-close-modal="flash-modal" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <label class="field"><span>Código *</span><input name="code" required maxlength="40" placeholder="FL-001" /></label>
+            <label class="field"><span>Nombre *</span><input name="name" required maxlength="120" placeholder="Golondrina" /></label>
+          </div>
+          <div class="form-row">
+            <label class="field"><span>Categoría</span><select name="category"><option value="clasico">Clásico</option><option value="nautico">Náutico</option><option value="floral">Floral</option><option value="otro">Otro</option></select></label>
+            <label class="field"><span>Precio</span><input name="price" type="number" min="0" step="1" value="0" /></label>
+          </div>
+          <div class="form-row">
+            <label class="field"><span>Tamaño</span><input name="size" maxlength="60" placeholder="10 × 8 cm" /></label>
+            <label class="field"><span>Imagen (URL)</span><input name="imageUrl" maxlength="500" placeholder="https://…" /></label>
+          </div>
+          <label class="field"><span>Descripción</span><textarea name="description" rows="2" maxlength="1000"></textarea></label>
+          <label class="checkbox"><input name="active" type="checkbox" checked /><span>Disponible en el catálogo</span></label>
+          <p class="form-error" id="flash-error" role="alert" hidden></p>
+        </div>
+        <div class="modal-actions">
+          <button class="button ghost small" type="button" data-close-modal="flash-modal">Cancelar</button>
+          <button class="button primary small" type="submit">Guardar diseño</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="appointment-modal" class="modal-backdrop" hidden>
+      <form id="appointment-form" class="modal" role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title">
+        <div class="modal-head">
+          <h2 id="appointment-modal-title">Editar cita</h2>
+          <button class="icon-button" type="button" data-close-modal="appointment-modal" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <label class="field"><span>Cliente *</span><input name="client" required maxlength="120" /></label>
+            <label class="field"><span>Teléfono</span><input name="phone" maxlength="40" /></label>
+          </div>
+          <div class="form-row">
+            <label class="field"><span>Diseño</span><input name="design" maxlength="200" /></label>
+            <label class="field"><span>Zona</span><input name="zone" maxlength="120" /></label>
+          </div>
+          <div class="form-row">
+            <label class="field"><span>Artista</span><select name="artist"><option value="">Sin asignar</option></select></label>
+            <label class="field"><span>Fecha y hora *</span><input name="at" type="datetime-local" required /></label>
+          </div>
+          <div class="form-row">
+            <label class="field"><span>Precio</span><input name="price" type="number" min="0" step="1" value="0" /></label>
+            <label class="field"><span>Depósito</span><input name="deposit" type="number" min="0" step="1" value="0" /></label>
+          </div>
+          <div class="form-row">
+            <label class="field"><span>Estado</span><select name="status">
+              <option value="cotizacion">Cotización</option>
+              <option value="pendiente">Depósito pendiente</option>
+              <option value="confirmada">Confirmada</option>
+              <option value="completada">Completada</option>
+              <option value="cancelada">Cancelada</option>
+            </select></label>
+            <label class="checkbox"><input name="paid" type="checkbox" /><span>Depósito pagado</span></label>
+          </div>
+          <label class="field"><span>Nota</span><textarea name="note" rows="2" maxlength="2000"></textarea></label>
+          <p class="form-error" id="appointment-error" role="alert" hidden></p>
+        </div>
+        <div class="modal-actions">
+          <button class="button ghost small" type="button" data-close-modal="appointment-modal">Cancelar</button>
+          <button class="button primary small" type="submit">Guardar cita</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="user-modal" class="modal-backdrop" hidden>
+      <form id="user-form" class="modal" role="dialog" aria-modal="true" aria-labelledby="user-modal-title">
+        <div class="modal-head">
+          <h2 id="user-modal-title">Nuevo usuario</h2>
+          <button class="icon-button" type="button" data-close-modal="user-modal" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <label class="field"><span>Usuario *</span><input name="username" required minlength="3" maxlength="40" autocomplete="off" /></label>
+            <label class="field"><span>Nombre completo</span><input name="fullName" maxlength="120" /></label>
+          </div>
+          <div class="form-row">
+            <label class="field"><span>Contraseña *</span><input name="password" type="password" required minlength="8" maxlength="200" autocomplete="new-password" /></label>
+            <label class="field"><span>Perfil</span><select name="role"><option value="user">Usuario</option><option value="admin">Administrador</option></select></label>
+          </div>
+          <p class="form-error" id="user-error" role="alert" hidden></p>
+        </div>
+        <div class="modal-actions">
+          <button class="button ghost small" type="button" data-close-modal="user-modal">Cancelar</button>
+          <button class="button primary small" type="submit">Crear usuario</button>
+        </div>
+      </form>
     </div>
 
     <!--========== Drawer de detalle de cita ==========-->
@@ -486,7 +627,9 @@
       </div>
       <div id="drawer-content" class="drawer-content"></div>
       <div class="drawer-actions">
-        <button id="drawer-confirm" class="button primary" type="button"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> Confirmar cita</button>
+        <button id="drawer-confirm" class="button primary" type="button"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> Aprobar / Confirmar</button>
+        <button id="drawer-edit" class="button ghost" type="button">Editar</button>
+        <button id="drawer-delete" class="button ghost" type="button">Eliminar</button>
         <button id="drawer-remind" class="button ghost" type="button">Enviar recordatorio</button>
         <button id="drawer-open-chat" class="button ghost" type="button">Ver conversación</button>
       </div>

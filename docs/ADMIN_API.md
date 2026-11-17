@@ -3,41 +3,67 @@
 API HTTP para operar el bot. La usa el panel web, pero también se puede consumir desde scripts, n8n u otro sistema.
 
 - Base: `http://localhost:4000/api/admin`
-- Autenticación: `Authorization: Bearer <ADMIN_TOKEN>`
 - Formato: JSON
 - Si `ADMIN_ENABLED=false`, todas las rutas responden `404`.
 
-> El token es único y compartido. No hay usuarios, roles ni sesiones del lado del servidor. Tratalo como una contraseña de administrador.
-
----
-
 ## Autenticación
 
+El panel usa **usuarios con contraseña cifrada (scrypt) y sesiones en cookie httpOnly**:
+
 ```http
-GET /api/admin/overview HTTP/1.1
-Host: localhost:4000
-Authorization: Bearer tu-admin-token
+POST /api/admin/auth/login
+Content-Type: application/json
+
+{ "username": "admin", "password": "tu-contraseña" }
 ```
+
+Responde `{ "ok": true, "user": { ... } }` y setea la cookie `wa_admin_session`.
+`GET /api/admin/auth/me` devuelve el usuario activo y `POST /api/admin/auth/logout` cierra la sesión.
+
+En el primer arranque se crea el usuario inicial `ADMIN_USERNAME` (o `admin`) con la
+contraseña `ADMIN_PASSWORD` (o, si no está definida, con `ADMIN_TOKEN`). Después se
+gestionan desde `GET/POST/PATCH/DELETE /api/admin/users`.
+
+> `Authorization: Bearer <ADMIN_TOKEN>` sigue aceptándose **solo como mecanismo de
+> reserva** para automatizaciones y tests. No es el login del panel.
 
 Respuestas de autenticación:
 
 | Caso | HTTP | Código |
 |---|---|---|
-| Token ausente o inválido | `401` | `UNAUTHORIZED` |
+| Sin sesión / credenciales inválidas | `401` / `400` | `UNAUTHORIZED` / `VALIDATION_ERROR` |
 | Panel deshabilitado | `404` | `ADMIN_DISABLED` |
 
-Ejemplos:
-
-```powershell
-$token = "tu-admin-token"
-$headers = @{ Authorization = "Bearer $token" }
-Invoke-RestMethod -Uri "http://localhost:4000/api/admin/overview" -Headers $headers
-```
+Ejemplo:
 
 ```bash
-curl -s http://localhost:4000/api/admin/overview \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
+curl -s -c cookies.txt -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"tu-contraseña"}' \
+  http://localhost:4000/api/admin/auth/login
+
+curl -s -b cookies.txt http://localhost:4000/api/admin/overview
 ```
+
+## Módulos del panel
+
+| Método | Ruta | Uso |
+|---|---|---|
+| `GET/POST` | `/users` | Listar / crear usuarios con contraseña |
+| `PATCH/DELETE` | `/users/:id` | Cambiar rol, clave, estado o eliminar |
+| `GET` | `/ai` | Proveedor/modelo activos y catálogo de proveedores |
+| `GET` | `/ai/models?provider=…&apiKey=…` | Modelos disponibles (consulta real a la API) |
+| `POST` | `/ai/test` | Prueba de conexión sin cambiar la configuración |
+| `PUT` | `/ai` | Guardar y activar proveedor/modelo/key |
+| `GET/POST` | `/artists` | Listar / crear artistas (CRUD) |
+| `PATCH/DELETE` | `/artists/:id` | Editar / eliminar artista |
+| `GET/POST` | `/flash` | Listar / crear diseños del catálogo |
+| `PATCH/DELETE` | `/flash/:id` | Editar / eliminar diseño |
+| `GET` | `/appointments` | Agenda unificada (filtros `status`, `artist`, `search`, `from`, `to`) |
+| `POST` | `/appointments` | Crear cita o cotización (`status=cotizacion`) |
+| `PATCH/DELETE` | `/appointments/:id` | Editar, aprobar/convertir o eliminar |
+
+Las cotizaciones **no son un módulo separado**: son registros de `/appointments`
+con `status: "cotizacion"`. Aprobarlas es un `PATCH` a `confirmada`.
 
 ---
 

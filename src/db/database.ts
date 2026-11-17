@@ -153,6 +153,81 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX idx_quote_requests_kind
     ON quote_requests(kind, status);
   `,
+  `
+  -- Usuarios del panel con contraseña cifrada (scrypt) y sesiones.
+  CREATE TABLE admin_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    full_name TEXT NOT NULL DEFAULT '',
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+    last_login_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE admin_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_admin_sessions_hash ON admin_sessions(token_hash);
+  CREATE INDEX idx_admin_sessions_user ON admin_sessions(user_id);
+
+  -- Equipo del estudio.
+  CREATE TABLE artists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    specialty TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    bio TEXT NOT NULL DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  -- Catálogo de tatuajes flash.
+  CREATE TABLE flash_tattoos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'clasico',
+    price INTEGER NOT NULL DEFAULT 0,
+    size TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    image_url TEXT,
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_flash_tattoos_category ON flash_tattoos(category);
+
+  -- Agenda unificada: las cotizaciones son registros con status 'cotizacion'.
+  CREATE TABLE appointments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    client TEXT NOT NULL,
+    phone TEXT NOT NULL DEFAULT '',
+    design TEXT NOT NULL DEFAULT '',
+    zone TEXT NOT NULL DEFAULT '',
+    artist TEXT NOT NULL DEFAULT '',
+    at TEXT NOT NULL,
+    price INTEGER NOT NULL DEFAULT 0,
+    deposit INTEGER NOT NULL DEFAULT 0,
+    paid INTEGER NOT NULL DEFAULT 0 CHECK (paid IN (0, 1)),
+    status TEXT NOT NULL DEFAULT 'cotizacion'
+      CHECK (status IN ('cotizacion', 'pendiente', 'confirmada', 'completada', 'cancelada')),
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_appointments_at ON appointments(at);
+  CREATE INDEX idx_appointments_status ON appointments(status);
+  `,
 ];
 
 export interface OpenDatabaseOptions {

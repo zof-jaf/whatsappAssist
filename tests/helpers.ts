@@ -23,6 +23,8 @@ import {
 import { ConversationService } from '../src/services/conversation-service.js';
 import { HealthService } from '../src/services/health-service.js';
 import { createApp } from '../src/app.js';
+import { AdminAuthService } from '../src/services/admin-auth-service.js';
+import { AiSettingsService } from '../src/services/ai-settings-service.js';
 import type { ChatMessage } from '../src/domain/prompt.js';
 import type { WahaWebhookEvent } from '../src/domain/waha.js';
 import type { MessageRow } from '../src/db/types.js';
@@ -295,6 +297,9 @@ export function createTestContext(
     WAHA_WEBHOOK_HMAC_KEY: 'test-hmac-secret',
     DATABASE_PATH: ':memory:',
     OLLAMA_MODEL: 'test-model:1b',
+    AI_PROVIDER: 'groq',
+    GROQ_API_KEY: 'gsk_test_key',
+    GROQ_MODEL: 'test-model:1b',
     LOG_LEVEL: 'silent',
     ...overrides,
   });
@@ -325,6 +330,9 @@ export function createTestContext(
     logger,
   );
   const responseGuide = new ResponseGuideService(config, logger);
+  const adminAuth = new AdminAuthService(config, repos, logger);
+  adminAuth.seed();
+  const aiSettings = new AiSettingsService(config, repos, logger);
   const conversations = new ConversationService(
     config,
     repos,
@@ -346,6 +354,8 @@ export function createTestContext(
     health,
     tattoo,
     notion,
+    auth: adminAuth,
+    aiSettings,
     logger,
     publicDir: resolve(process.cwd(), 'public'),
   });

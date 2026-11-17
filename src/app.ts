@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import express, { type ErrorRequestHandler, type Request } from 'express';
+import express, {
+  type ErrorRequestHandler,
+  type Request,
+  type RequestHandler,
+} from 'express';
 import helmet from 'helmet';
 import pinoHttp, {
   type HttpLogger,
@@ -17,10 +21,16 @@ import type { NotionSettingsService } from './services/notion-settings-service.j
 import type { TattooSettingsService } from './services/tattoo-settings-service.js';
 import type { InboundWorker } from './services/worker.js';
 import type { Logger } from './logger.js';
-import { createAdminAuthMiddleware } from './middleware/admin-auth.js';
+import {
+  createAdminSessionMiddleware,
+  requireAdminAuth,
+} from './middleware/admin-auth.js';
 import { createWebhookHmacMiddleware, type RawBodyRequest } from './middleware/webhook-hmac.js';
 import { createAdminRouter } from './routes/admin.js';
+import { createAdminAuthRouter } from './routes/admin-auth.js';
 import { createWebhookRouter } from './routes/webhook.js';
+import type { AdminAuthService } from './services/admin-auth-service.js';
+import type { AiSettingsService } from './services/ai-settings-service.js';
 import { AppError } from './errors.js';
 import { APP_VERSION } from './version.js';
 import { errorMessage } from './utils/async.js';
@@ -35,6 +45,8 @@ export interface AppDependencies {
   health: HealthService;
   tattoo: TattooSettingsService;
   notion: NotionSettingsService;
+  auth: AdminAuthService;
+  aiSettings: AiSettingsService;
   worker?: InboundWorker;
   logger: Logger;
   publicDir: string;
@@ -160,9 +172,28 @@ export function createApp(deps: AppDependencies): express.Express {
     }),
   );
 
+  const adminDisabled: RequestHandler = (_req, res, next) => {
+    if (!config.admin.enabled) {
+      res.status(404).json({
+        error: { code: 'ADMIN_DISABLED', message: 'Panel deshabilitado' },
+      });
+      return;
+    }
+    next();
+  };
+
   app.use(
     '/api/admin',
-    createAdminAuthMiddleware(config),
+    adminDisabled,
+    createAdminSessionMiddleware(config, deps.auth),
+  );
+  app.use(
+    '/api/admin/auth',
+    createAdminAuthRouter({ config, auth: deps.auth }),
+  );
+  app.use(
+    '/api/admin',
+    requireAdminAuth,
     createAdminRouter({
       config,
       repos,
@@ -170,6 +201,8 @@ export function createApp(deps: AppDependencies): express.Express {
       conversations,
       tattoo: deps.tattoo,
       notion: deps.notion,
+      auth: deps.auth,
+      aiSettings: deps.aiSettings,
       waha: deps.waha,
       worker,
     }),
