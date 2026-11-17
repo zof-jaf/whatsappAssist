@@ -340,17 +340,6 @@ kbd {
   flex: 0 0 auto;
 }
 
-.demo-chip {
-  flex: 0 0 auto;
-  padding: 4px 9px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-sm);
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.04em;
-  color: var(--text-dim);
-}
-
 /* ---------- KPI strip (Linear-like density) ---------- */
 
 .kpi-strip {

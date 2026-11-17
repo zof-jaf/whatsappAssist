@@ -139,7 +139,7 @@ export class GroqClient implements AiClient {
   }
 
   async health(): Promise<AiHealth> {
-    const timeout = createTimeoutSignal(5000);
+    const timeout = createTimeoutSignal(this.config.timeoutMs);
     try {
       const response = await this.fetchImpl(`${this.baseUrl}/models`, {
         headers: this.headers(),
@@ -158,7 +158,12 @@ export class GroqClient implements AiClient {
         hasModel: models.includes(this.config.model),
       };
     } catch (error) {
-      return { ok: false, models: [], hasModel: false, error: errorMessage(error) };
+      return {
+        ok: false,
+        models: [],
+        hasModel: false,
+        error: `No se pudo contactar a Groq: ${errorMessage(error)}`,
+      };
     } finally {
       timeout.cleanup();
     }

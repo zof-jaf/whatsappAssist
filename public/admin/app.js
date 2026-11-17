@@ -73,57 +73,13 @@ const state = {
   },
 };
 
-/* ---------- Datos ilustrativos de agenda ----------
-   Las citas reales viven en Notion; el backend no expone aún un
-   endpoint de agenda. Esta vista muestra la estructura y el flujo. */
-function demoDate(offsetDays, time) {
-  const day = new Date();
-  day.setHours(0, 0, 0, 0);
-  day.setDate(day.getDate() + offsetDays);
-  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}T${time}:00`;
-}
-
-const APPOINTMENTS = [
-  { code: 'CIT-0482', client: 'Valentina Ríos', phone: '300 412 7789', design: 'Golondrinas', zone: 'Antebrazo', artist: 'Camila Serrano', at: demoDate(1, '15:00'), price: 480000, deposit: 150000, paid: true, status: 'confirmada', note: 'Ref: flash 04 · 3 sesiones' },
-  { code: 'COT-0391', client: 'Andrés F. Moreno', phone: '310 555 0142', design: 'Daga con rosas', zone: 'Pecho', artist: 'Diego Navarro', at: demoDate(2, '11:30'), price: 1250000, deposit: 400000, paid: false, status: 'pendiente', note: 'Cotización aprobada · espera depósito' },
-  { code: 'CIT-0480', client: 'Laura Martínez', phone: '320 887 3391', design: 'Mariposa dotwork', zone: 'Hombro', artist: 'Camila Serrano', at: demoDate(0, '10:00'), price: 320000, deposit: 100000, paid: true, status: 'completada', note: 'Sesión finalizada' },
-  { code: 'COT-0388', client: 'Sebastián Gil', phone: '301 224 8890', design: 'Máquina de bobinas', zone: 'Brazo', artist: 'Diego Navarro', at: demoDate(3, '16:00'), price: 690000, deposit: 200000, paid: false, status: 'cotizacion', note: 'Esperando respuesta del tatuador' },
-  { code: 'CIT-0479', client: 'M. Fernanda Ruiz', phone: '315 669 2204', design: 'Rosa neo-trad', zone: 'Muslo', artist: 'Lucía Ocampo', at: demoDate(-1, '17:30'), price: 540000, deposit: 170000, paid: true, status: 'completada', note: 'Sesión finalizada' },
-  { code: 'COT-0394', client: 'Paola A. Castaño', phone: '312 770 4481', design: 'Mano con daga', zone: 'Antebrazo', artist: 'Lucía Ocampo', at: demoDate(4, '14:00'), price: 870000, deposit: 250000, paid: false, status: 'cotizacion', note: 'Enviada hace 19 h · sin respuesta' },
-  { code: 'CIT-0483', client: 'Nicolás Heredia', phone: '318 340 9922', design: 'Sello marino', zone: 'Tobillo', artist: 'Lucía Ocampo', at: demoDate(5, '12:00'), price: 280000, deposit: 90000, paid: true, status: 'confirmada', note: 'Diseño flash 11' },
-  { code: 'COT-0396', client: 'Julián Castrillón', phone: '300 918 3375', design: 'Retoque de línea', zone: 'Hombro', artist: 'Camila Serrano', at: demoDate(5, '09:30'), price: 120000, deposit: 0, paid: false, status: 'cotizacion', note: 'Falta definir tamaño' },
-  { code: 'CIT-0478', client: 'Sara Benavides', phone: '321 556 1109', design: 'Calavera tradicional', zone: 'Pantorrilla', artist: 'Diego Navarro', at: demoDate(-2, '16:30'), price: 610000, deposit: 180000, paid: true, status: 'cancelada', note: 'Cancelada por el cliente' },
-];
-
-const CHAT_SCRIPT = [
-  { from: 'client', text: 'Buenas tardes, ¿cuánto sale un tatuaje de golondrinas en el antebrazo?', time: '14:02' },
-  { from: 'bot', text: '¡Hola! Para cotizarlo necesito el tamaño aproximado en cm y si querés color o solo negro.', time: '14:02' },
-  { from: 'client', text: 'Como 12 cm, en color.¿Tienen disponibilidad está semana?', time: '14:05' },
-  { from: 'bot', text: 'Perfecto. Derivo la consulta al tatuador con el código COT-0391. Te aviso en cuanto responda.', time: '14:05' },
-  { from: 'bot', text: 'Cotización recibida: $480.000. Para apartar el espacio necesitamos un depósito de $150.000.', time: '15:41' },
-];
-
-const FLASH_ITEMS = [
-  { code: 'FL-01', name: 'Golondrina', category: 'clasico', price: 180000, size: '8 × 5 cm', art: 'swallow' },
-  { code: 'FL-04', name: 'Rosa old school', category: 'floral', price: 220000, size: '10 × 8 cm', art: 'rose' },
-  { code: 'FL-07', name: 'Daga y serpiente', category: 'clasico', price: 260000, size: '14 × 6 cm', art: 'dagger' },
-  { code: 'FL-09', name: 'Ancla náutica', category: 'nautico', price: 190000, size: '9 × 9 cm', art: 'anchor' },
-  { code: 'FL-11', name: 'Mano y daga', category: 'clasico', price: 240000, size: '12 × 7 cm', art: 'hand' },
-  { code: 'FL-12', name: 'Mariposa dotwork', category: 'floral', price: 210000, size: '10 × 10 cm', art: 'butterfly' },
-  { code: 'FL-14', name: 'Brújula', category: 'nautico', price: 200000, size: '11 × 11 cm', art: 'compass' },
-  { code: 'FL-16', name: 'Corazón con banner', category: 'clasico', price: 170000, size: '8 × 7 cm', art: 'heart' },
-];
-
-const FLASH_ART = {
-  swallow: '<path d="M12 34c8-10 18-14 30-13-4 5-9 8-14 9 7-1 13 1 18 6-9-1-16 0-22 4 4 4 6 9 6 15-6-6-12-9-18-10-6 1-12 4-18 10 0-6 2-11 6-15-6-4-13-5-22-4 5-5 11-7 18-6-5-1-10-4-14-9 12-1 22 3 30 13z"/>',
-  rose: '<path d="M32 44c0-6 4-10 10-10 4 0 7 2 8 5 2-3 5-5 9-4 5 1 8 5 8 10 0 8-7 13-17 13S32 52 32 44z"/><path d="M41 39c3 4 8 5 12 3 5-2 8-1 11 2M43 47c5-3 9-3 14 0M50 52v14M50 58c-6-3-11-2-15 2M50 62c6-3 11-2 15 2"/>',
-  dagger: '<path d="M50 6 46 40h8L50 6zM46 40h8M50 40v22M45 64h10M50 62v6"/><path d="M44 44c-4 2-6 6-6 10M56 44c4 2 6 6 6 10"/>',
-  anchor: '<circle cx="50" cy="15" r="5"/><path d="M50 20v44M38 30h24M28 50c0 13 10 20 22 20s22-7 22-20M28 50l-5 5M72 50l5 5"/>',
-  hand: '<path d="M36 58V34c0-3 4-3 4 0v-4c0-3 4-3 4 0v-3c0-3 4-3 4 0v-2c0-3 4-3 4 0v3c0-3 4-3 4 0v5c0-3 4-3 4 0v24"/><path d="M36 58c0 8 6 12 14 12s14-4 14-12M50 6 46 16h8L50 6z"/>',
-  butterfly: '<path d="M50 36C42 22 24 20 22 34c-1 9 10 14 20 10M50 36c8-14 26-16 28-2 1 9-10 14-20 10M50 34v30M44 30l-6-8M56 30l6-8M47 48l-6 8M53 48l6 8"/>',
-  compass: '<circle cx="50" cy="40" r="24"/><circle cx="50" cy="40" r="19"/><path d="m50 22 5 14 14 4-14 4-5 14-5-14-14-4 14-4z"/><path d="M50 6v8M50 66v8M16 40h8M76 40h8"/>',
-  heart: '<path d="M50 62 28 42c-8-7-8-19 0-25 7-6 17-3 22 4 5-7 15-10 22-4 8 6 8 18 0 25L50 62z"/><path d="M32 44h36l-5 8H37z"/>',
-};
+/* ---------- Agenda / catálogo ----------
+   El proyecto arranca vacío: no hay registros ilustrativos. Las citas reales
+   viven en Notion y se cargarán desde la integración cuando esté conectada. */
+const APPOINTMENTS = [];
+const CHAT_SCRIPT = [];
+const FLASH_ITEMS = [];
+const FLASH_ART = {};
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -699,9 +655,14 @@ function renderInfoList(element, entries) {
     .join('');
 }
 
-function setConnectionChip(health) {
+function aiProviderLabel(provider) {
+  return provider === 'groq' ? 'Groq' : 'Ollama';
+}
+
+function setConnectionChip(health, aiProvider = 'ollama') {
   let severity = 'ok';
   let label = 'Operativo';
+  const provider = aiProviderLabel(aiProvider);
 
   if (!health.waha.ok) {
     severity = 'error';
@@ -713,10 +674,12 @@ function setConnectionChip(health) {
 
   if (!health.ollama.ok) {
     severity = 'error';
-    label = health.waha.ok ? 'Ollama sin conexión' : 'Dependencias caídas';
+    label = health.waha.ok ? `${provider} sin conexión` : 'Dependencias caídas';
   } else if (!health.ollama.hasModel) {
     if (severity !== 'error') severity = 'warn';
-    label = 'Modelo sin descargar';
+    label = aiProvider === 'groq'
+      ? 'Modelo de Groq no disponible'
+      : 'Modelo sin descargar';
   }
 
   els.connectionChip.className = `chip ${severity}`;
@@ -732,8 +695,9 @@ function setConnectionChip(health) {
   }
 }
 
-function renderHealth(container, health, worker) {
+function renderHealth(container, health, worker, aiProvider = 'ollama') {
   const parts = [];
+  const provider = aiProviderLabel(aiProvider);
 
   parts.push(
     healthItem(
@@ -760,16 +724,18 @@ function renderHealth(container, health, worker) {
     ),
   );
 
-  const ollamaDetail = health.ollama.ok
+  const aiDetail = health.ollama.ok
     ? health.ollama.hasModel
-      ? `Modelo disponible (${health.ollama.models.length} modelo/s)`
-      : 'Ollama responde, pero falta el modelo configurado'
-    : health.ollama.error || 'No se pudo contactar a Ollama';
+      ? `Modelo disponible en ${provider} (${health.ollama.models.length} modelo/s)`
+      : aiProvider === 'groq'
+        ? `${provider} responde, pero el modelo configurado no está disponible en tu cuenta`
+        : `${provider} responde, pero falta el modelo configurado`
+    : `${provider}: ${health.ollama.error || 'no se pudo contactar'}`;
   parts.push(
     healthItem(
-      'Ollama / IA local',
+      aiProvider === 'groq' ? 'Groq / IA en la nube' : 'Ollama / IA local',
       health.ollama.ok ? (health.ollama.hasModel ? 'ok' : 'warn') : 'error',
-      ollamaDetail,
+      aiDetail,
     ),
   );
 
@@ -822,8 +788,8 @@ function renderOverview(data) {
   els.brandName.textContent = 'Estudio de Tatuajes';
   els.brandSubtitle.textContent = `${data.bot?.name || 'Asistente'} · v${data.version ?? '—'}`;
   els.modelChip.textContent = data.bot?.model || 'modelo desconocido';
-  els.modelChip.title = `Modelo de Ollama: ${data.bot?.model ?? '—'}`;
-  setConnectionChip(data.health);
+  els.modelChip.title = `Modelo de IA (${aiProviderLabel(data.bot?.aiProvider)}): ${data.bot?.model ?? '—'}`;
+  setConnectionChip(data.health, data.bot?.aiProvider);
 
   const stats = data.stats ?? {};
   const queue = data.health?.queue ?? {};
@@ -874,8 +840,8 @@ function renderOverview(data) {
     ),
   ].join('');
 
-  renderHealth(els.healthGrid, data.health, data.worker);
-  setConnectionChip(data.health);
+  renderHealth(els.healthGrid, data.health, data.worker, data.bot?.aiProvider);
+  setConnectionChip(data.health, data.bot?.aiProvider);
 
   const settings = data.settings ?? {};
   renderInfoList(els.botInfo, [
@@ -1974,10 +1940,11 @@ async function loadSystem(options = {}) {
 }
 
 function renderSystem(data) {
-  renderHealth(els.systemHealth, data.health, data.worker);
+  renderHealth(els.systemHealth, data.health, data.worker, data.settings?.aiProvider);
 
   const settings = data.settings ?? {};
   renderInfoList(els.systemSettings, [
+    ['Proveedor de IA', aiProviderLabel(settings.aiProvider)],
     ['Modelo', settings.model ?? '—'],
     ['Bot', settings.botName ?? '—'],
     ['Zona horaria', settings.timeZone ?? '—'],
@@ -2235,15 +2202,8 @@ function renderBento() {
       </div>`).join('')
     : '<div class="empty-mini">Sin cotizaciones abiertas.</div>';
 
-  els.botActivity.innerHTML = [
-    ['green', 'Mensaje respondido', 'Consulta de horario derivada al tatuador', 'hace 4 min'],
-    ['gold', 'Cotización creada', 'COT-0391 enviada al tatuador', 'hace 12 min'],
-    ['crimson', 'Depósito pendiente', 'Recordatorio automático programado', 'hace 38 min'],
-    ['gold', 'Cita confirmada', 'CIT-0482 sincronizada con Notion', 'hace 1 h'],
-  ].map(([tone, title, detail, at]) => `<div class="timeline-item">
-      <div class="timeline-rail"><span class="${tone}"></span></div>
-      <div class="timeline-body"><strong>${esc(title)}</strong><p>${esc(detail)}</p><time>${esc(at)}</time></div>
-    </div>`).join('');
+  els.botActivity.innerHTML =
+    '<p class="muted small">Sin actividad reciente del bot.</p>';
 }
 
 function openAppointment(code) {
@@ -2279,7 +2239,9 @@ function openAppointment(code) {
     <section class="drawer-section">
       <h3>Conversación de WhatsApp</h3>
       <div class="drawer-chat">
-        ${CHAT_SCRIPT.map((message) => `<div class="bubble ${message.from}">${esc(message.text)}<small>${esc(message.time)} · ${message.from === 'bot' ? 'Bot' : 'Cliente'}</small></div>`).join('')}
+        ${CHAT_SCRIPT.length
+          ? CHAT_SCRIPT.map((message) => `<div class="bubble ${message.from}">${esc(message.text)}<small>${esc(message.time)} · ${message.from === 'bot' ? 'Bot' : 'Cliente'}</small></div>`).join('')
+          : '<p class="muted small">Sin conversación registrada para esta cita.</p>'}
       </div>
     </section>`;
 
@@ -2307,7 +2269,8 @@ function renderFlash(filter = 'all') {
     ? FLASH_ITEMS
     : FLASH_ITEMS.filter((item) => item.category === filter);
 
-  els.flashGrid.innerHTML = items.map((item) => `
+  els.flashGrid.innerHTML = items.length
+    ? items.map((item) => `
     <article class="card flash-card">
       <div class="flash-art">
         <span class="flash-code">${esc(item.code)}</span>
@@ -2318,7 +2281,8 @@ function renderFlash(filter = 'all') {
         <p>${esc(item.category)} · disponible para agendar</p>
         <div class="flash-meta"><span class="price">${money(item.price)}</span><span class="size">${esc(item.size)}</span></div>
       </div>
-    </article>`).join('');
+    </article>`).join('')
+    : '<p class="muted small">El catálogo está vacío. Agregá diseños cuando quieras.</p>';
 }
 
 function bindEvents() {

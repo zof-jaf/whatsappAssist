@@ -162,7 +162,7 @@
             <span id="crumb-current" class="crumb-current">Agenda</span>
           </div>
           <div class="topbar-actions">
-            <span id="model-chip" class="chip" title="Modelo de Ollama">—</span>
+            <span id="model-chip" class="chip" title="Modelo de IA configurado">—</span>
             <span id="connection-chip" class="chip neutral" aria-live="polite">Comprobando…</span>
             <span class="topbar-divider" aria-hidden="true"></span>
             <button id="refresh-top" class="icon-button" type="button" title="Actualizar sección" aria-label="Actualizar sección">
@@ -192,11 +192,11 @@
             </div>
 
             <div class="kpi-strip" aria-label="Indicadores de la agenda">
-              <div class="kpi"><span class="kpi-label">Citas la semana</span><strong class="kpi-value">18</strong><span class="kpi-delta">+3 vs. anterior</span></div>
-              <div class="kpi"><span class="kpi-label">Por confirmar</span><strong class="kpi-value accent-gold">06</strong><span class="kpi-delta">2 con depósito</span></div>
-              <div class="kpi"><span class="kpi-label">Cotizaciones abiertas</span><strong class="kpi-value">12</strong><span class="kpi-delta">4 sin respuesta</span></div>
-              <div class="kpi"><span class="kpi-label">Depósitos cobrados</span><strong class="kpi-value">$1.240.000</strong><span class="kpi-delta">noviembre</span></div>
-              <div class="kpi"><span class="kpi-label">Ocupación</span><strong class="kpi-value">74%</strong><span class="kpi-delta">capacidad weekly</span></div>
+              <div class="kpi"><span class="kpi-label">Citas la semana</span><strong class="kpi-value">0</strong></div>
+              <div class="kpi"><span class="kpi-label">Por confirmar</span><strong class="kpi-value accent-gold">0</strong></div>
+              <div class="kpi"><span class="kpi-label">Cotizaciones abiertas</span><strong class="kpi-value">0</strong></div>
+              <div class="kpi"><span class="kpi-label">Depósitos cobrados</span><strong class="kpi-value">$0</strong></div>
+              <div class="kpi"><span class="kpi-label">Ocupación</span><strong class="kpi-value">0%</strong></div>
             </div>
 
             <section class="card table-card">
@@ -215,9 +215,6 @@
                   <span class="sr-only">Filtrar por artista</span>
                   <select id="agenda-artist">
                     <option value="all">Todos los artistas</option>
-                    <option value="Camila Serrano">Camila Serrano</option>
-                    <option value="Diego Navarro">Diego Navarro</option>
-                    <option value="Lucía Ocampo">Lucía Ocampo</option>
                   </select>
                 </label>
                 <div class="status-filters" role="group" aria-label="Filtrar por estado">
@@ -249,7 +246,7 @@
                 </table>
               </div>
               <div class="table-foot">
-                <span class="muted small">Los datos de agenda se sincronizan desde Notion. Esta vista es ilustrativa.</span>
+                <span class="muted small">Los datos de agenda se sincronizan desde Notion. El proyecto arranca sin citas cargadas.</span>
                 <span id="agenda-foot-count" class="muted small mono">—</span>
               </div>
             </section>
@@ -431,39 +428,9 @@
                 <h1>Artistas</h1>
                 <p class="muted page-sub">Carga, especialidad y disponibilidad de cada tatuador del estudio.</p>
               </div>
-              <span class="demo-chip" title="Directorio ilustrativo">DIRECTORIO DEMO</span>
             </div>
             <div class="artist-grid">
-              <article class="card artist-card">
-                <div class="artist-portrait"><span class="avatar-ring">CS</span></div>
-                <div class="artist-body">
-                  <h3>Camila Serrano</h3>
-                  <p class="artist-role">Neo-traditional · color</p>
-                  <div class="tag-row"><span class="tag tag-gold">Flash</span><span class="tag">Flores</span><span class="tag">Retratos</span></div>
-                  <dl class="artist-stats"><div><dt>Sesiones · mes</dt><dd class="mono">24</dd></div><div><dt>Tarifa / hora</dt><dd class="mono">$180.000</dd></div><div><dt>Valoración</dt><dd class="mono">4.9</dd></div></dl>
-                  <div class="artist-foot"><span class="chip ok">Disponible</span><button class="button ghost small" type="button" data-artist-filter="Camila Serrano">Ver agenda</button></div>
-                </div>
-              </article>
-              <article class="card artist-card">
-                <div class="artist-portrait"><span class="avatar-ring">DN</span></div>
-                <div class="artist-body">
-                  <h3>Diego Navarro</h3>
-                  <p class="artist-role">Blackwork · dotwork</p>
-                  <div class="tag-row"><span class="tag tag-gold">Grandes piezas</span><span class="tag">Geometría</span><span class="tag">Dagas</span></div>
-                  <dl class="artist-stats"><div><dt>Sesiones · mes</dt><dd class="mono">18</dd></div><div><dt>Tarifa / hora</dt><dd class="mono">$210.000</dd></div><div><dt>Valoración</dt><dd class="mono">4.8</dd></div></dl>
-                  <div class="artist-foot"><span class="chip warn">Agenda ajustada</span><button class="button ghost small" type="button" data-artist-filter="Diego Navarro">Ver agenda</button></div>
-                </div>
-              </article>
-              <article class="card artist-card">
-                <div class="artist-portrait"><span class="avatar-ring">LO</span></div>
-                <div class="artist-body">
-                  <h3>Lucía Ocampo</h3>
-                  <p class="artist-role">Old school · flash</p>
-                  <div class="tag-row"><span class="tag tag-gold">Golondrinas</span><span class="tag">Rosas</span><span class="tag">Náutico</span></div>
-                  <dl class="artist-stats"><div><dt>Sesiones · mes</dt><dd class="mono">21</dd></div><div><dt>Tarifa / hora</dt><dd class="mono">$165.000</dd></div><div><dt>Valoración</dt><dd class="mono">5.0</dd></div></dl>
-                  <div class="artist-foot"><span class="chip ok">Disponible</span><button class="button ghost small" type="button" data-artist-filter="Lucía Ocampo">Ver agenda</button></div>
-                </div>
-              </article>
+              <p class="muted small">Todavía no hay artistas registrados. Agregá el equipo del estudio cuando quieras.</p>
             </div>
           </section>
 
@@ -475,7 +442,6 @@
                 <h1>Catálogo Flash</h1>
                 <p class="muted page-sub">Diseños listos para agendar. Grabados en tinta, precios fijos y tiempos estimados.</p>
               </div>
-              <span class="demo-chip" title="Catálogo ilustrativo">CATÁLOGO DEMO</span>
             </div>
             <div class="flash-toolbar">
               <div class="status-filters" role="group" aria-label="Filtrar catálogo">
@@ -484,7 +450,7 @@
                 <button class="filter-chip" type="button" data-flash-filter="nautico">Náutico</button>
                 <button class="filter-chip" type="button" data-flash-filter="floral">Floral</button>
               </div>
-              <span class="muted small mono">12 diseños disponibles</span>
+              <span class="muted small mono">0 diseños disponibles</span>
             </div>
             <div id="flash-grid" class="flash-grid"></div>
           </section>

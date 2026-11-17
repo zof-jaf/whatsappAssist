@@ -91,6 +91,29 @@ describe('API de administración', () => {
     expect(response.body.dashboardUrl).toContain('/dashboard');
   });
 
+  it('informa el proveedor Groq y su estado en overview y sistema', async () => {
+    ctx.close();
+    ctx = createTestContext({
+      AI_PROVIDER: 'groq',
+      GROQ_API_KEY: 'gsk_test_key',
+      GROQ_MODEL: 'openai/gpt-oss-20b',
+    });
+
+    const overview = await request(ctx.app)
+      .get('/api/admin/overview')
+      .set(AUTH);
+    expect(overview.status).toBe(200);
+    expect(overview.body.bot.aiProvider).toBe('groq');
+    expect(overview.body.bot.model).toBe('openai/gpt-oss-20b');
+    expect(overview.body.health.ollama.ok).toBe(true);
+    expect(overview.body.health.ollama.hasModel).toBe(true);
+
+    const system = await request(ctx.app).get('/api/admin/system').set(AUTH);
+    expect(system.status).toBe(200);
+    expect(system.body.settings.aiProvider).toBe('groq');
+    expect(system.body.settings.model).toBe('openai/gpt-oss-20b');
+  });
+
   it('marca la instancia como no lista si la sesión de WAHA no está conectada', async () => {
     ctx.waha.sessionStatus = 'SCAN_QR_CODE';
     const notReady = await request(ctx.app).get('/ready');

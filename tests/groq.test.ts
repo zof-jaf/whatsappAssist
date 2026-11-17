@@ -69,6 +69,15 @@ describe('GroqClient', () => {
     expect(health.hasModel).toBe(false);
   });
 
+  it('reporta fallos de red identificando al proveedor', async () => {
+    const fetchImpl: typeof fetch = async () => {
+      throw new Error('fetch failed');
+    };
+    const health = await new GroqClient(config, fetchImpl).health();
+    expect(health.ok).toBe(false);
+    expect(health.error).toMatch(/Groq/);
+  });
+
   it('lanza GroqError en errores de autenticación sin reintentar', async () => {
     const fetchImpl: typeof fetch = async () => json({ error: { message: 'Invalid API Key' } }, 401);
     await expect(new GroqClient(config, fetchImpl).chat([])).rejects.toBeInstanceOf(GroqError);

@@ -165,6 +165,7 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       uptimeSeconds: Math.round(process.uptime()),
       bot: {
         name: config.bot.name,
+        aiProvider: config.ai.provider,
         model: config.ollama.model,
         timeZone: config.bot.timeZone,
         enabled: config.bot.enabled,
@@ -648,6 +649,7 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       events,
       failedJobs,
       settings: {
+        aiProvider: config.ai.provider,
         model: config.ollama.model,
         botName: config.bot.name,
         timeZone: config.bot.timeZone,
