@@ -1,6 +1,6 @@
 # WhatsApp AI Bot
 
-Bot de WhatsApp con **IA local**, historial persistente y panel de administración. Usa **WAHA** como puente con WhatsApp, **Ollama** para generar las respuestas y **SQLite** como única fuente de verdad. Todo corre en tu máquina o servidor: las conversaciones no se envían a ninguna API de IA en la nube.
+Bot de WhatsApp con historial persistente y panel de administración. Usa **WAHA** como puente con WhatsApp y **SQLite** como fuente de verdad del modo legado. Las respuestas se generan con **Ollama local** (por defecto) o con **Groq** (`AI_PROVIDER=groq`), según configuración.
 
 > Proyecto pensado para uso personal o de un equipo pequeño. No es un chatbot multi-tenant ni está preparado para escalar horizontalmente.
 
@@ -556,7 +556,22 @@ Todo se configura por variables de entorno en `.env`. Los valores se validan al 
 | `TYPING_INDICATOR` | `true` | Mostrar “escribiendo…” |
 | `QUOTE_REPLIES` | `false` | Responder citando el mensaje entrante |
 
-### Ollama
+### Proveedor de IA (Ollama o Groq)
+
+El bot puede generar respuestas con **Ollama local** o con **Groq** (nube, API compatible con OpenAI). Se elige con `AI_PROVIDER`.
+
+| Variable | Default | Descripción |
+|---|---|---|
+| `AI_PROVIDER` | `ollama` | `ollama` (local) o `groq` (nube) |
+| `GROQ_API_KEY` | — | Key de Groq. **Solo en `.env`/entorno; nunca en el código.** |
+| `GROQ_MODEL` | `openai/gpt-oss-20b` | ID exacto del modelo (verificable en `GET /openai/v1/models`) |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Endpoint OpenAI-compatible |
+| `GROQ_TIMEOUT_MS` | `60000` | Timeout de generación |
+| `GROQ_MAX_TOKENS` | `1024` | Salida máxima (los `gpt-oss` consumen tokens en razonamiento) |
+
+Si la key se compartió por un canal inseguro, **rotala en console.groq.com**. Con `AI_PROVIDER=groq` no hace falta Ollama ni descargar modelos; la temperatura y `OLLAMA_NUM_PREDICT` (`max_tokens`) se reutilizan para Groq.
+
+### Ollama (solo si `AI_PROVIDER=ollama`)
 
 | Variable | Default | Descripción |
 |---|---|---|

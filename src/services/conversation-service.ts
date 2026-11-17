@@ -2,7 +2,7 @@ import type { AppConfig } from '../config.js';
 import type { ContactRow, ConversationRow, InboundJobRow, MessageRow } from '../db/types.js';
 import type { Repositories } from '../db/repositories/index.js';
 import type { WahaClient } from '../clients/waha.js';
-import type { OllamaClient } from '../clients/ollama.js';
+import type { AiClient } from '../clients/ai.js';
 import type { Logger } from '../logger.js';
 import type { SummaryService } from './summary-service.js';
 import type { QuoteService } from './quote-service.js';
@@ -31,7 +31,7 @@ import {
   isAbortError,
 } from '../utils/async.js';
 import { sanitizeReply, truncate } from '../utils/text.js';
-import { NotFoundError, OllamaError, ValidationError } from '../errors.js';
+import { AiError, NotFoundError, ValidationError } from '../errors.js';
 import { PermanentJobError } from './job-errors.js';
 
 export interface ConversationEvent {
@@ -58,7 +58,7 @@ export class ConversationService {
     private readonly config: AppConfig,
     private readonly repos: Repositories,
     private readonly waha: WahaClient,
-    private readonly ollama: OllamaClient,
+    private readonly ollama: AiClient,
     private readonly summaries: SummaryService,
     private readonly quotes: QuoteService,
     private readonly scheduling: SchedulingService,
@@ -318,7 +318,7 @@ export class ConversationService {
       if (
         signal?.aborted ||
         isAbortError(error) ||
-        !(error instanceof OllamaError)
+        !(error instanceof AiError)
       ) {
         // Los fallos de envío o de base se reintentan sin regenerar la respuesta.
         throw error;

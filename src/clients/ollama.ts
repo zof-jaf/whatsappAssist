@@ -2,21 +2,12 @@ import type { ChatMessage } from '../domain/prompt.js';
 import type { AppConfig } from '../config.js';
 import { OllamaError } from '../errors.js';
 import { sleep, createTimeoutSignal, errorMessage } from '../utils/async.js';
+import type { AiChatOptions, AiChatResult, AiClient, AiHealth } from './ai.js';
 
-export interface OllamaChatOptions {
-  temperature?: number;
-  numPredict?: number;
-  numCtx?: number;
-  signal?: AbortSignal;
-}
-
-export interface OllamaChatResult {
-  content: string;
-  model: string;
-  promptTokens: number | null;
-  completionTokens: number | null;
-  latencyMs: number;
-}
+// Se mantienen los nombres históricos para no romper importaciones existentes.
+export type OllamaChatOptions = AiChatOptions;
+export type OllamaChatResult = AiChatResult;
+export type OllamaHealth = AiHealth;
 
 interface OllamaChatResponse {
   model?: string;
@@ -26,14 +17,7 @@ interface OllamaChatResponse {
   total_duration?: number;
 }
 
-export interface OllamaHealth {
-  ok: boolean;
-  models: string[];
-  hasModel: boolean;
-  error?: string;
-}
-
-export class OllamaClient {
+export class OllamaClient implements AiClient {
   private readonly baseUrl: string;
 
   constructor(

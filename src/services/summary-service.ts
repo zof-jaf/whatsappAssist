@@ -1,6 +1,6 @@
 import type { AppConfig } from '../config.js';
 import type { Repositories } from '../db/repositories/index.js';
-import type { OllamaClient } from '../clients/ollama.js';
+import type { AiClient } from '../clients/ai.js';
 import type { Logger } from '../logger.js';
 import { buildSummaryMessages } from '../domain/prompt.js';
 import { collapseWhitespace, truncate } from '../utils/text.js';
@@ -12,7 +12,7 @@ export class SummaryService {
   constructor(
     private readonly config: AppConfig,
     private readonly repos: Repositories,
-    private readonly ollama: OllamaClient,
+    private readonly ollama: AiClient,
     private readonly logger: Logger,
   ) {}
 

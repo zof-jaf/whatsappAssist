@@ -163,6 +163,12 @@ services:
       # Reenvío de sesiones multiusuario a la plataforma (opcional).
       PLATFORM_WEBHOOK_URL: ${PLATFORM_WEBHOOK_URL:-http://platform:4001/webhook}
       OLLAMA_BASE_URL: http://ollama:11434
+      # Proveedor de IA (Groq por defecto). La key viene de .env / entorno.
+      AI_PROVIDER: ${AI_PROVIDER:-groq}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
+      GROQ_BASE_URL: ${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
+      GROQ_MAX_TOKENS: ${GROQ_MAX_TOKENS:-1024}
       LOG_PRETTY: "false"
     ports:
       - "127.0.0.1:4000:4000"
@@ -221,6 +227,12 @@ services:
       PLATFORM_WEBHOOK_HMAC_KEY: ${WAHA_WEBHOOK_HMAC_KEY:-}
       LEGACY_SESSION_NAME: ${WAHA_SESSION:-default}
       LEGACY_WEBHOOK_URL: http://bot:4000
+      # Cada motor por bot hereda el proveedor de IA desde process.env.
+      AI_PROVIDER: ${AI_PROVIDER:-groq}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
+      GROQ_BASE_URL: ${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
+      GROQ_MAX_TOKENS: ${GROQ_MAX_TOKENS:-1024}
       ENGINE_DATA_DIR: /app/data/bots
       ALLOW_PUBLIC_REGISTRATION: "false"
       COOKIE_SECURE: "true"

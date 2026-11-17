@@ -56,12 +56,23 @@ export interface AppConfig {
   };
   ollama: {
     baseUrl: string;
+    /** Modelo activo (el de Groq cuando AI_PROVIDER=groq). */
     model: string;
     temperature: number;
     numCtx: number;
     numPredict: number;
     timeoutMs: number;
     keepAlive: string;
+  };
+  ai: {
+    provider: 'ollama' | 'groq';
+    groq: {
+      apiKey?: string;
+      baseUrl: string;
+      timeoutMs: number;
+      /** Tokens máximos de salida; los modelos gpt-oss consumen parte en razonamiento. */
+      maxTokens: number;
+    };
   };
   bot: {
     name: string;
@@ -151,6 +162,9 @@ const envSchema = z.object({
   TYPING_INDICATOR: boolFromEnv(true),
   QUOTE_REPLIES: boolFromEnv(false),
 
+  // Proveedor de IA: "ollama" (local) o "groq" (nube).
+  AI_PROVIDER: z.enum(['ollama', 'groq']).default('ollama'),
+
   OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),
   OLLAMA_MODEL: z.string().min(1).default('llama3.2:3b'),
   OLLAMA_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.7),
@@ -158,6 +172,13 @@ const envSchema = z.object({
   OLLAMA_NUM_PREDICT: z.coerce.number().int().min(32).default(512),
   OLLAMA_TIMEOUT_MS: z.coerce.number().int().min(1000).default(120_000),
   OLLAMA_KEEP_ALIVE: z.string().default('30m'),
+
+  // Groq (API compatible con OpenAI). La key se lee SOLO del entorno.
+  GROQ_API_KEY: optionalTrimmedString,
+  GROQ_MODEL: z.string().min(1).default('openai/gpt-oss-20b'),
+  GROQ_BASE_URL: z.string().url().default('https://api.groq.com/openai/v1'),
+  GROQ_TIMEOUT_MS: z.coerce.number().int().min(1000).default(60_000),
+  GROQ_MAX_TOKENS: z.coerce.number().int().min(32).default(1024),
 
   BOT_NAME: z.string().min(1).default('Asistente'),
   BOT_ENABLED: boolFromEnv(true),
@@ -223,6 +244,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     );
   }
 
+  if (raw.AI_PROVIDER === 'groq' && !raw.GROQ_API_KEY) {
+    throw new ConfigError(
+      'AI_PROVIDER=groq requiere GROQ_API_KEY en el entorno (nunca en el código).',
+    );
+  }
+
+  // Modelo activo: cuando se usa Groq, el reporte/health deben mostrar GROQ_MODEL.
+  const activeModel = raw.AI_PROVIDER === 'groq' ? raw.GROQ_MODEL : raw.OLLAMA_MODEL;
+
   const allowedChatIds = new Set(
     splitCommaList(raw.ALLOWED_CHAT_IDS)
       .map((chatId) => normalizeChatId(chatId))
@@ -275,12 +305,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     ollama: {
       baseUrl: raw.OLLAMA_BASE_URL.replace(/\/+$/, ''),
-      model: raw.OLLAMA_MODEL,
+      model: activeModel,
       temperature: raw.OLLAMA_TEMPERATURE,
       numCtx: raw.OLLAMA_NUM_CTX,
       numPredict: raw.OLLAMA_NUM_PREDICT,
       timeoutMs: raw.OLLAMA_TIMEOUT_MS,
       keepAlive: raw.OLLAMA_KEEP_ALIVE,
+    },
+    ai: {
+      provider: raw.AI_PROVIDER,
+      groq: {
+        apiKey: raw.GROQ_API_KEY,
+        baseUrl: raw.GROQ_BASE_URL.replace(/\/+$/, ''),
+        timeoutMs: raw.GROQ_TIMEOUT_MS,
+        maxTokens: raw.GROQ_MAX_TOKENS,
+      },
     },
     bot: {
       name: raw.BOT_NAME,

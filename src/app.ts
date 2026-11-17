@@ -10,7 +10,7 @@ import type { AppConfig } from './config.js';
 import type { Db } from './db/database.js';
 import type { Repositories } from './db/repositories/index.js';
 import type { WahaClient } from './clients/waha.js';
-import type { OllamaClient } from './clients/ollama.js';
+import type { AiClient } from './clients/ai.js';
 import type { ConversationService } from './services/conversation-service.js';
 import type { HealthService } from './services/health-service.js';
 import type { NotionSettingsService } from './services/notion-settings-service.js';
@@ -30,7 +30,7 @@ export interface AppDependencies {
   db: Db;
   repos: Repositories;
   waha: WahaClient;
-  ollama: OllamaClient;
+  ollama: AiClient;
   conversations: ConversationService;
   health: HealthService;
   tattoo: TattooSettingsService;

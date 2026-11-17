@@ -5,7 +5,7 @@ import { createLogger, type Logger } from '../logger.js';
 import { closeDatabase, openDatabase, type Db } from '../db/database.js';
 import { createRepositories, type Repositories } from '../db/repositories/index.js';
 import { WahaClient } from '../clients/waha.js';
-import { OllamaClient } from '../clients/ollama.js';
+import { createAiClient } from '../clients/ai-factory.js';
 import { SummaryService } from '../services/summary-service.js';
 import { QuoteService } from '../services/quote-service.js';
 import { SchedulingService } from '../services/scheduling-service.js';
@@ -85,7 +85,7 @@ async function createEngine(
   await notion.initialize();
 
   const waha = new WahaClient(config.waha);
-  const ollama = new OllamaClient(config.ollama);
+  const ollama = createAiClient(config);
   const summaries = new SummaryService(config, repos, ollama, logger);
   const quotes = new QuoteService(config, repos, waha, logger);
   const scheduling = new SchedulingService(config, repos, waha, notion, logger);

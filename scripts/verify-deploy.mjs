@@ -67,6 +67,11 @@ check('SESSION_SECRET >= 16 caracteres', (env.SESSION_SECRET ?? '').length >= 16
 check('ADMIN_PASSWORD >= 12 caracteres', (env.ADMIN_PASSWORD ?? '').length >= 12);
 check('ADMIN_EMAIL válido', /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(env.ADMIN_EMAIL ?? ''));
 check('WAHA_BASE_URL es http(s)', /^https?:\/\//.test(env.WAHA_BASE_URL ?? ''));
+if (env.AI_PROVIDER === 'groq') {
+  check('GROQ_API_KEY definida', Boolean(env.GROQ_API_KEY?.trim()));
+  check('GROQ_MODEL definido', Boolean(env.GROQ_MODEL?.trim()));
+  check('GROQ_BASE_URL es http(s)', /^https?:\/\//.test(env.GROQ_BASE_URL ?? ''));
+}
 if (env.NODE_ENV === 'production' || !env.NODE_ENV) {
   check('COOKIE_SECURE=true en producción', env.COOKIE_SECURE === 'true');
   check('APP_BASE_URL usa HTTPS', /^https:\/\//.test(env.APP_BASE_URL ?? ''));

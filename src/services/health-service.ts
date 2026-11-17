@@ -2,7 +2,7 @@ import type { AppConfig } from '../config.js';
 import type { Repositories } from '../db/repositories/index.js';
 import type { Db } from '../db/database.js';
 import type { WahaClient } from '../clients/waha.js';
-import type { OllamaClient, OllamaHealth } from '../clients/ollama.js';
+import type { AiClient, AiHealth } from '../clients/ai.js';
 import type { JobStats } from '../db/types.js';
 import { errorMessage } from '../utils/async.js';
 import { nowIso } from '../utils/time.js';
@@ -18,7 +18,7 @@ export interface HealthSnapshot {
   checkedAt: string;
   db: { ok: boolean; error?: string };
   waha: WahaHealth;
-  ollama: OllamaHealth;
+  ollama: AiHealth;
   queue: JobStats;
 }
 
@@ -30,7 +30,7 @@ export class HealthService {
     private readonly db: Db,
     private readonly repos: Repositories,
     private readonly waha: WahaClient,
-    private readonly ollama: OllamaClient,
+    private readonly ollama: AiClient,
   ) {}
 
   liveness(): { ok: boolean; error?: string } {

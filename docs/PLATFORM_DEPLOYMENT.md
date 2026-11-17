@@ -123,6 +123,11 @@ La app queda en `http://localhost:4000` (o el `PORT` configurado).
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Admin sembrado en el primer arranque | `admin@dominio.com` |
 | `ALLOW_PUBLIC_REGISTRATION` | Permite registro abierto | `false` recomendado en producción |
 | `API_KEY_PREFIX` | Prefijo de API keys por bot | `wbp` |
+| `AI_PROVIDER` | `ollama` (local) o `groq` (nube) | `groq` |
+| `GROQ_API_KEY` | Key de Groq (solo entorno; rotar si se expuso) | — |
+| `GROQ_MODEL` | Modelo a usar (debe existir en tu cuenta) | `openai/gpt-oss-20b` |
+| `GROQ_BASE_URL` | Endpoint OpenAI-compatible de Groq | `https://api.groq.com/openai/v1` |
+| `GROQ_MAX_TOKENS` | Salida máxima (gpt-oss gasta tokens en razonamiento) | `1024` |
 
 ### 4.5 Despliegue con Docker (WAHA + app)
 
@@ -172,6 +177,7 @@ Pasos:
    - `WAHA_BASE_URL` (URL pública o interna de tu servicio WAHA en Railway).
    - `WAHA_ADMIN_API_KEY`, `SESSION_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
    - `COOKIE_SECURE=true`, `TRUST_PROXY=true`, `APP_BASE_URL=https://<tu-dominio>.up.railway.app`.
+   - `AI_PROVIDER=groq`, `GROQ_API_KEY`, `GROQ_MODEL=openai/gpt-oss-20b`.
    - `ALLOW_PUBLIC_REGISTRATION=false`.
 3. El healthcheck usa `/health` y respeta la variable `PORT` que Railway asigna
    (no depende del 4000 fijo).

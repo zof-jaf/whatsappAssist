@@ -6,7 +6,7 @@ import { createLogger, type Logger } from './logger.js';
 import { closeDatabase, openDatabase, type Db } from './db/database.js';
 import { createRepositories, type Repositories } from './db/repositories/index.js';
 import { WahaClient } from './clients/waha.js';
-import { OllamaClient } from './clients/ollama.js';
+import { createAiClient } from './clients/ai-factory.js';
 import { SummaryService } from './services/summary-service.js';
 import { QuoteService } from './services/quote-service.js';
 import { SchedulingService } from './services/scheduling-service.js';
@@ -80,6 +80,7 @@ async function main(): Promise<void> {
       version: APP_VERSION,
       node: process.version,
       env: config.env,
+      aiProvider: config.ai.provider,
       model: config.ollama.model,
       botEnabled: config.bot.enabled,
       adminEnabled: config.admin.enabled,
@@ -133,7 +134,7 @@ async function main(): Promise<void> {
   }
 
   const waha = new WahaClient(config.waha);
-  const ollama = new OllamaClient(config.ollama);
+  const ollama = createAiClient(config);
   const health = new HealthService(config, db, repos, waha, ollama);
   const summaries = new SummaryService(config, repos, ollama, logger);
   const quotes = new QuoteService(config, repos, waha, logger);
@@ -286,7 +287,9 @@ async function logStartupHealth(input: {
       {
         db: snapshot.db.ok,
         waha: { ok: snapshot.waha.ok, status: snapshot.waha.status },
-        ollama: {
+        ai: {
+          provider: input.config.ai.provider,
+          model: input.config.ollama.model,
           ok: snapshot.ollama.ok,
           hasModel: snapshot.ollama.hasModel,
           models: snapshot.ollama.models.length,
@@ -297,13 +300,20 @@ async function logStartupHealth(input: {
     );
 
     if (!snapshot.ollama.hasModel) {
-      input.logger.warn(
-        {
-          model: input.config.ollama.model,
-          command: `docker compose exec ollama ollama pull ${input.config.ollama.model}`,
-        },
-        'El modelo configurado no está descargado en Ollama',
-      );
+      if (input.config.ai.provider === 'groq') {
+        input.logger.warn(
+          { model: input.config.ollama.model },
+          'El modelo configurado no está disponible en tu cuenta de Groq',
+        );
+      } else {
+        input.logger.warn(
+          {
+            model: input.config.ollama.model,
+            command: `docker compose exec ollama ollama pull ${input.config.ollama.model}`,
+          },
+          'El modelo configurado no está descargado en Ollama',
+        );
+      }
     }
     if (!snapshot.waha.ok) {
       input.logger.warn(

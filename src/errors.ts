@@ -42,15 +42,33 @@ export class WahaError extends AppError {
   }
 }
 
-export class OllamaError extends AppError {
-  constructor(message: string, statusCode = 502, details?: unknown) {
+/** Error base de cualquier proveedor de IA (Ollama, Groq, ...). */
+export class AiError extends AppError {
+  constructor(
+    message: string,
+    options: { statusCode?: number; code?: string; details?: unknown } = {},
+  ) {
     super(message, {
-      statusCode,
-      code: 'OLLAMA_ERROR',
-      details,
+      statusCode: options.statusCode ?? 502,
+      code: options.code ?? 'AI_ERROR',
+      details: options.details,
       expose: false,
     });
+    this.name = 'AiError';
+  }
+}
+
+export class OllamaError extends AiError {
+  constructor(message: string, statusCode = 502, details?: unknown) {
+    super(message, { statusCode, code: 'OLLAMA_ERROR', details });
     this.name = 'OllamaError';
+  }
+}
+
+export class GroqError extends AiError {
+  constructor(message: string, statusCode = 502, details?: unknown) {
+    super(message, { statusCode, code: 'GROQ_ERROR', details });
+    this.name = 'GroqError';
   }
 }
 
